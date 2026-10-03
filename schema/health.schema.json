@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/health.schema.json",
+  "title": "health: signals that gate promotion and rollback (stub)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "posthog", "signal"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "posthog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "secret_scope"],
+      "properties": {"host": {"type": "string"}, "secret_scope": {"$ref": "area.schema.json#/$defs/name"}}
+    },
+    "signal": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "source", "measure", "compare", "window_hours", "repos"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "source": {"enum": ["posthog", "ci"]},
+          "measure": {"type": "string", "minLength": 1},
+          "compare": {"enum": ["previous-release", "last-week", "absolute"]},
+          "max_regression_pct": {"type": "number", "minimum": 0},
+          "max_value": {"type": "number", "minimum": 0},
+          "window_hours": {"type": "integer", "minimum": 1},
+          "repos": {"$ref": "area.schema.json#/$defs/names", "minItems": 1}
+        },
+        "if": {"properties": {"compare": {"const": "absolute"}}},
+        "then": {"required": ["max_value"]},
+        "else": {"required": ["max_regression_pct"]}
+      }
+    }
+  }
+}

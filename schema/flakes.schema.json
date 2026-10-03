@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/flakes.schema.json",
+  "title": "flakes: verdicts, retries and quarantine (stub)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "verdict", "quarantine", "detection"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retry_failed", "compare_with_base", "exonerate_known_flakes"],
+      "properties": {
+        "retry_failed": {"type": "integer", "minimum": 0, "maximum": 5},
+        "compare_with_base": {"type": "boolean"},
+        "exonerate_known_flakes": {"type": "boolean"}
+      }
+    },
+    "quarantine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["needs_issue", "max_days", "approval"],
+      "properties": {
+        "needs_issue": {"type": "boolean"},
+        "max_days": {"type": "integer", "minimum": 1},
+        "approval": {"$ref": "area.schema.json#/$defs/approval"}
+      }
+    },
+    "detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["flake_rate_target_pct"],
+      "properties": {"flake_rate_target_pct": {"type": "number", "minimum": 0}}
+    }
+  }
+}

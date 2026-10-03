@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/area.schema.json",
+  "title": "[area] header at the top of every config/*.toml, plus shared definitions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "status", "schema", "owners", "read_by", "chromium"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z_]+$",
+      "description": "Must equal the file name without .toml."
+    },
+    "status": {
+      "enum": ["seed", "stub"],
+      "description": "seed: decided values for the first users. stub: shape and placeholders only; an expert designs it."
+    },
+    "schema": {
+      "const": "v0",
+      "description": "Config schema version. Bump on breaking changes; readers check it."
+    },
+    "owners": {"$ref": "area.schema.json#/$defs/people"},
+    "read_by": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "description": "Systems that will read this area. Most are not built yet."
+    },
+    "chromium": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Chromium counterpart, so an expert knows what to read."
+    }
+  },
+  "$defs": {
+    "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "names": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/name"}},
+    "people": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1},
+      "description": "Filled in by suraj: GitHub handles, teams or agent names. No assignment logic here."
+    },
+    "approval": {
+      "enum": ["none", "owner", "human-owner", "policy-owner"],
+      "description": "none: a green gate is enough. owner: an owner (human or AI) other than the author. human-owner: a human owner. policy-owner: org.toml [roles]."
+    },
+    "cron": {"type": "string", "pattern": "^\\S+( \\S+){4}$", "description": "Five-field cron, UTC."}
+  }
+}

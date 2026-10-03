@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/org.schema.json",
+  "title": "org: name, backends, roles, pools, secret scopes, budget, rotations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "org", "backend", "roles", "pool", "secret_scope", "budget", "rotation"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "org": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "short", "code_host", "default_backend"],
+      "properties": {
+        "system": {"type": "string", "minLength": 1},
+        "short": {"type": "string", "minLength": 1},
+        "code_host": {"type": "string", "minLength": 1},
+        "default_backend": {"$ref": "area.schema.json#/$defs/name"}
+      }
+    },
+    "backend": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "status": {"enum": ["active", "planned"]}
+        }
+      }
+    },
+    "roles": {
+      "type": "object",
+      "required": ["policy-owner"],
+      "additionalProperties": {"$ref": "area.schema.json#/$defs/people"}
+    },
+    "pool": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "secrets"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "secrets": {"$ref": "area.schema.json#/$defs/names"},
+          "github": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["runs_on"],
+            "properties": {"runs_on": {"type": "string", "minLength": 1}}
+          }
+        }
+      }
+    },
+    "secret_scope": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "mechanism"],
+        "properties": {"name": {"$ref": "area.schema.json#/$defs/name"}, "mechanism": {"enum": ["oidc", "token"]}}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["monthly_ci_usd"],
+      "properties": {"monthly_ci_usd": {"type": "number", "minimum": 0}}
+    },
+    "rotation": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "duty", "members"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "duty": {"type": "string", "minLength": 1},
+          "members": {"$ref": "area.schema.json#/$defs/people"}
+        }
+      }
+    }
+  }
+}

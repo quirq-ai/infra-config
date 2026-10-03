@@ -1,0 +1,48 @@
+# Fuzz schedules. STUB: neither repo has fuzz targets yet, so nothing runs.
+
+[area]
+name = "fuzz"
+status = "stub"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["fuzz runner (not built)"]
+chromium = "ClusterFuzz and libFuzzer targets"
+
+# Engines per toolchain: the simplest well-known coverage-guided fuzzers, installed as ordinary
+# packages, so they run on any backend without containers.
+[engine]
+python = "atheris"       # Google's Python fuzzer
+node = "jazzer.js"       # Code Intelligence's JS/TS fuzzer
+# TODO(expert): orchestration (scheduling, corpus, dedup). ClusterFuzzLite, the CI-sized ClusterFuzz, needs containers (later).
+# TODO(expert): decide if API fuzzing of xo-space's OpenAPI schema (e.g. Schemathesis) is a better first target.
+
+[findings]
+tracker = "github-issues"
+label = "fuzz-crash"
+# A security crash is a postmortem trigger (postmortem.toml "fuzz-security-crash").
+
+[[schedule]]
+name = "xo-space-pr"
+repo = "xo-space"
+mode = "code-change"     # short run on each PR; reports only new crashes
+duration_minutes = 10
+pool = "untrusted"
+blocking = false         # TODO(expert): when fuzzing may block the gate.
+
+[[schedule]]
+name = "xo-space-batch"
+repo = "xo-space"
+mode = "batch"
+cron = "0 2 * * *"       # daily, UTC
+duration_minutes = 60
+pool = "untrusted"
+blocking = false
+
+[[schedule]]
+name = "innernet-batch"
+repo = "innernet"
+mode = "batch"
+cron = "0 3 * * 0"       # weekly, UTC
+duration_minutes = 60
+pool = "untrusted"
+blocking = false

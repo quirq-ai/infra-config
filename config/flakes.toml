@@ -1,0 +1,25 @@
+# How a test failure becomes a verdict, and how flaky tests are quarantined (plan §3 P5).
+# STUB: shape and proposed numbers only. Nothing reads this until test-pipelines exists (P2).
+
+[area]
+name = "flakes"
+status = "stub"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["test-pipelines (P2)", "gate"]
+chromium = "ResultDB, LUCI Analysis exoneration (luci-analysis.cfg), retry with and without patch (cq.md)"
+
+[verdict]
+retry_failed = 1             # rerun failing tests once with the change
+compare_with_base = true     # then without it; only failures that pass without the change fail it
+exonerate_known_flakes = true
+# TODO(expert): the exoneration thresholds, as LUCI Analysis keeps them in config.
+
+[quarantine]
+needs_issue = true           # a quarantined test links an issue
+max_days = 14                # and expires; CI fails once the date passes
+approval = "owner"           # quarantine lists are on the verification surface (gate.toml)
+
+[detection]
+flake_rate_target_pct = 1.0
+# TODO(expert): how new tests are checked for flakiness before they may block the gate.

@@ -1,0 +1,67 @@
+# Toolchains and target kinds, with the capabilities each kind implements (plan §5.2).
+# A kind resolves to an adapter in quirq-ai/recipes, which does not exist yet. A missing
+# capability is a declared state, not an error: a docs site has no `test`.
+# Settled year-one stack: the latest Python and the latest Next.js. Containers come later.
+
+[area]
+name = "kinds"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["recipes", "sync", "tools/qqcfg.py generate"]
+chromium = "recipes in chromium/tools/build + recipes-py; toolchain pins checked by the build"
+
+# --- toolchains: one org-wide pin each; the roller rotation moves `pin` as `track` says ---------
+
+[[toolchain]]
+name = "python"
+track = "latest"         # settled: the latest Python
+pin = "3.14"             # latest stable in GitHub's actions/python-versions manifest on 2026-10-03
+[toolchain.github]
+uses = "actions/setup-python@v6"
+version_input = "python-version"
+
+[[toolchain]]
+name = "node"
+track = "lts"            # for the latest Next.js (16.3.8 on npm, 2026-10-03)
+pin = "24"               # current Node LTS on nodejs.org, 2026-10-03
+# TODO(expert): github provisioning for node, when a node-app builder is generated.
+# TODO(expert): hermetic pins by digest (plan P3) once containers are in scope.
+
+# --- kinds -----------------------------------------------------------------------------------
+# `interim` holds stand-in commands until the recipes adapter for that kind exists (P1). Only
+# tools/qqcfg.py generate reads them, and only for builders marked `generate = true`.
+
+[[kind]]
+name = "python-service"
+phase = "year-one"
+capabilities = ["fetch", "build", "run", "deploy"]
+toolchain = "python"
+[kind.interim]
+fetch = "python -m pip install --quiet -r requirements.txt"
+build = "python -m compileall -q ."
+
+[[kind]]
+name = "pytest"
+phase = "year-one"
+capabilities = ["fetch", "test"]
+toolchain = "python"
+[kind.interim]
+fetch = "python -m pip install --quiet -r requirements-dev.txt"
+test = "python -m pytest -q -p no:cacheprovider --junitxml=results/junit.xml"
+
+[[kind]]
+name = "node-app"        # Next.js apps managed with pnpm
+phase = "year-one"
+capabilities = ["fetch", "build", "test", "run", "deploy"]
+toolchain = "node"
+
+[[kind]]
+name = "static-docs"
+phase = "year-one"
+capabilities = ["build", "deploy"]
+
+[[kind]]
+name = "container-image"
+phase = "later"          # settled: containers come later
+capabilities = ["build", "package", "deploy"]

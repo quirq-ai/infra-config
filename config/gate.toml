@@ -1,0 +1,68 @@
+# The landing gate. A change lands only when the deterministic gate has verified the exact merge
+# result. Agents propose; machinery disposes. No agent can override the gate.
+
+[area]
+name = "gate"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["gate (P2)", "repo settings applied by suraj"]
+chromium = "LUCI CV and commit-queue.cfg; docs/infra/cq.md"
+
+[merge_queue]
+backend = "github"                # v0: GitHub merge queue, which needs public repos (settled: public only)
+merge_method = "squash"           # xo-space already squash-merges. TODO(suraj): confirm squash merges for every repo.
+required = "blocking-builders"    # every builder with blocking = true is a required check
+
+[admission]
+# A builder may block the gate only if it is fast and has a post-submit mirror. Chromium's bar is a
+# median under 40 minutes and a gardened CI mirror (cq.md); ours is tighter at the median.
+max_p50_minutes = 15
+max_minutes = 40
+needs_postsubmit_mirror = true
+
+[verification_surface]
+# Changes touching these paths need owner approval, and their author (human or agent) cannot
+# approve them. This blocks "edit the test instead of fixing the code" (whitepaper attack A3).
+paths = [
+  "tests/**", "**/test_*.py", "**/*.test.ts", "**/*.spec.ts",
+  "infra/**", ".github/**", "**/quarantine.*",
+]
+author_may_approve = false
+
+# Who may land what. A change takes the strictest class it matches; classes run least to most strict.
+#   approval = "none"          a green gate is enough, so an agent may land it alone
+#   approval = "owner"         an owner (human or AI) of every touched repo or area, other than the author
+#   approval = "human-owner"   as "owner", but a human
+#   approval = "policy-owner"  org.toml [roles] (suraj)
+# TODO(expert): make `matches` machine-checkable (path globs, clean-revert detection like Rubber Stamper).
+
+[[change_class]]
+name = "clean-revert"
+approval = "none"
+matches = "A pure git revert of a landed commit, with no other edits."
+
+[[change_class]]
+name = "dependency-roll"
+approval = "none"
+matches = "Pin and lockfile updates only, opened by the roller rotation."
+
+[[change_class]]
+name = "docs"
+approval = "none"
+matches = "Only Markdown files or docs/**, outside the verification surface."
+
+[[change_class]]
+name = "code"
+approval = "owner"
+matches = "Anything no other class matches."
+
+[[change_class]]
+name = "policy"
+approval = "policy-owner"
+matches = "The verification surface, quarantine lists, release or channel config, and this repo's config/, schema/, tools/ and AGENTS.md."
+
+[tree_status]
+# When main is red beyond what auto_revert may fix, the gardener closes the tree and the queue pauses.
+# TODO(expert): design tree closers: who closes and reopens, and what the queue does meanwhile.
+closes_on = ["auto-revert-cap-exhausted", "main-red-over-budget"]

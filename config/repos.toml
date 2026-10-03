@@ -1,0 +1,39 @@
+# The registry of onboarded repos. Onboarding a repo means adding one [[repo]] block here, plus
+# the repo's own infra/repo.toml once `sync` exists. Facts were read from the repos on 2026-10-03.
+# Settled: public repos only for now (both repos below clone anonymously).
+
+[area]
+name = "repos"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["gate", "gardener", "release", "rollers"]
+chromium = "projects and refs declared in infra/config (lucicfg)"
+
+[[repo]]
+name = "xo-space"
+source = "github.com/quirq-ai/xo-space"
+description = "Python FastAPI app (cowork API and Space UI) that users install on their machines."
+visibility = "public"
+default_branch = "main"
+kinds = ["python-service", "pytest"]
+manifest = "infra/repo.toml"   # not created yet (P1)
+channels = ["canary", "dev", "stable"]
+owners = []              # suraj fills in
+[repo.deploy]
+target = "installer-channel"   # install.sh and the in-app updater follow a channel ref (P5); today they follow main
+# xo-space runs Python 3.12 today (Dockerfile, tests.yml); moving to the org pin is P1 work.
+# It also publishes a container image to ghcr; containers stay out of scope until later.
+
+[[repo]]
+name = "innernet"
+source = "github.com/quirq-ai/innernet"
+description = "Next.js app managed with pnpm."
+visibility = "public"
+default_branch = "main"
+kinds = ["node-app"]
+manifest = "infra/repo.toml"   # not created yet (P1)
+channels = ["canary", "dev", "stable"]
+owners = []              # suraj fills in
+[repo.deploy]
+target = "vercel"        # TODO(expert): verify Vercel (only a .vercelignore hints).

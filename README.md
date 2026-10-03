@@ -1,0 +1,155 @@
+# infra-config
+
+Configuration as code for **quirq infra** (qq), the CI/CD system for every quirq-ai repo. This
+repo declares the whole system as data: which repos are onboarded, what builds them, how a change
+lands, how releases move through channels, and the limits on what agents may do alone. A change
+here is a pull request that goes through the same gate as code, and you revert it like code.
+
+Chromium counterpart: `chromium/src/infra/config` plus `lucicfg`. Chromium writes its fleet in
+Starlark, generates the service configs, and a presubmit check fails if the generated files are
+stale. This repo keeps that model (source, then generated output, then an in-sync check) with
+smaller parts.
+
+**Status: v0 skeleton, built width-first.** Every area is declared in enough detail for an expert
+to take it over. Nothing reads this config yet except its own tool, `qqcfg`. Each file's header
+says whether it is a `seed` (its values are decided) or a `stub` (only the shape is there, and the
+values are placeholders).
+
+## Quick start
+
+```sh
+python3 -m pip install -r requirements.txt     # jsonschema; Python 3.11+ for tomllib
+python3 tools/qqcfg.py validate                # the CI check; exit 1 on any error
+python3 tools/qqcfg.py validate --todos        # also list every open decision
+python3 tools/qqcfg.py generate                # rewrite generated/ after editing config/
+python3 -m unittest discover -s tests          # seed passes; known-bad changes fail
+```
+
+`validate` checks five things: the TOML parses, every area matches its JSON Schema, every
+reference resolves, the policy invariants hold, and `generated/` matches what `generate` would
+write. `.github/workflows/validate.yml` runs it with the tests on every PR and in the merge queue.
+
+## Layout
+
+```text
+infra-config/
+├── config/                 the source of truth: one TOML file per area, parsed and never executed
+│   ├── org.toml            system name, backends, roles, pools, secret scopes, budget, rotations
+│   ├── kinds.toml          toolchains and target kinds (year one: latest Python, latest Next.js)
+│   ├── repos.toml          registry of onboarded repos: xo-space, innernet
+│   ├── pipelines.toml      builders: presubmit, postsubmit, release
+│   ├── gate.toml           landing gate, verification surface, who may land what
+│   ├── flakes.toml         retries, exoneration, quarantine with expiry
+│   ├── auto_revert.toml    gardener revert caps
+│   ├── rollers.toml        machine-written dependency updates
+│   ├── channels.toml       canary → dev → stable, promotion and rollback rules
+│   ├── fuzz.toml           fuzz engines and schedules
+│   ├── postmortem.toml     postmortem policy and failure tracking
+│   ├── health.toml         health signals (PostHog and CI) that gate promotion
+│   └── perf.toml           benchmarks and alert thresholds
+├── schema/                 JSON Schema (draft 2020-12): area.schema.json plus one per area
+├── tools/qqcfg.py          validate + generate (the lucicfg counterpart)
+├── generated/github/       generated output for the github backend; never edit by hand
+├── tests/test_qqcfg.py     the validator's own tests
+├── .github/                CODEOWNERS and this repo's own validate workflow
+└── AGENTS.md               how agents change this repo safely
+```
+
+Every config file begins with the same `[area]` header: `name`, `status` (`seed` or `stub`),
+`schema` version (`v0`), `owners` (left empty; suraj fills it in, and nothing here assigns owners),
+`read_by` (the systems that will read the file) and `chromium` (the counterpart an expert should
+read first).
+
+## Areas and what each expert owns next
+
+| Area | Status | What the expert owns next |
+|---|---|---|
+| `org` | stub | Isolated runners for trusted work; OIDC trust for each deploy target; mapping Launchpad onto the backend seam. |
+| `kinds` | seed | Recipes adapters for `python-service`, `pytest`, `node-app` and `static-docs` that replace the `interim` commands; github provisioning for node. |
+| `repos` | seed | Each repo's own `infra/repo.toml` (with `sync`); moving xo-space from Python 3.12 to the org pin; confirming innernet's deploy target. |
+| `pipelines` | seed | Generating every builder, not just the one example; getting generated workflows into product repos; deciding whether builders move into each repo's `infra/`. |
+| `gate` | seed | Making the change classes machine-checkable; the gate check app; tree closers. suraj applies the GitHub settings (merge queue, required checks). |
+| `flakes` | stub | Results store, exoneration thresholds, and enforcing quarantine expiry. |
+| `auto_revert` | seed | A gardener that stays within the caps; whether deploy failures get their own budget. |
+| `rollers` | stub | A Python lockfile for xo-space, Dependabot config, and the toolchain roller. |
+| `channels` | seed | Who advances `lkgr`; what a channel and a rollout percentage mean for each deploy target; rollback. |
+| `fuzz` | stub | Fuzz harnesses (neither repo has any), orchestration, and corpus storage. |
+| `postmortem` | stub | The template, where postmortems live, and grouping failures into recurring classes. |
+| `health` | stub | Wiring PostHog into each repo (neither sends events today), event names, and xo-space telemetry consent. |
+| `perf` | stub | Benchmark hardware, noise control, and routing alerts to bisection. |
+
+Not declared yet, because their phase has not started: hermetic toolchain images (`toolchains`,
+P3), the remote cache and executor (`remote-build`, P3/P6) and channel-following installers
+(`installer`, P5). Each gets a `config/<area>.toml` and a schema when it starts.
+
+## Rules the validator enforces
+
+Config alone cannot loosen these. They live in `tools/qqcfg.py`, which is a policy path, so
+changing one needs the policy-owner (suraj).
+
+- Promotion to stable needs the policy-owner. Any channel that reaches people (dev, stable) needs
+  a human owner's approval. Only canary, which is agents-only, promotes without one.
+- canary is agents-only and runs unattended every day. It is the fully autonomous loop and serves
+  as a research and test environment. dev is for humans plus agents.
+- Agents may land only clean reverts, dependency rolls and docs alone. Policy changes need the
+  policy-owner, and authors cannot approve their own changes to the verification surface.
+- Auto-revert: at most 10 per rolling 24 h. Beneath that cap sit LUCI Bisection's limits: 10
+  created per failure type, 4 auto-submitted for build failures, none auto-submitted for test
+  failures, and only culprits up to 6 h old.
+- Untrusted pools hold no secrets, and presubmit and PR fuzzing run only in pools without secrets.
+- Post-submit builders are never cancelled. Repos are public only.
+
+The validator also checks the files against each other. Every repo needs a blocking presubmit
+builder on `change` and `queue` and a post-submit mirror. A blocking builder must fit within the
+gate's `max_minutes`. Repos may use only kinds whose phase is `year-one`, so containers wait.
+Every name used in one file must be defined in another.
+
+## Backends: GitHub now, Launchpad later
+
+v0 runs on GitHub. Execution later moves to Launchpad, quirq's own cloud, so the config stays
+backend-neutral:
+
+- Triggers have neutral names: `change`, `queue`, `land` and `schedule`. The github generator maps
+  them to `pull_request`, `merge_group` and `push`.
+- Anything specific to one backend sits in a sub-table named after that backend (`[pool.github]`,
+  `[toolchain.github]`) or is chosen by a `backend` field (`pipelines.defaults`,
+  `gate.merge_queue`). `org.toml` lists the backends.
+- All GitHub-specific tooling sits in one section of `tools/qqcfg.py`, and its output goes to
+  `generated/github/`.
+
+## Choices made where the plan does not decide
+
+Where the plan left a choice open, I picked the simplest well-known option:
+
+- **TOML for config.** The plan already uses TOML for repo manifests ("parsed and never executed,
+  like DEPS"), and Python reads it with the standard-library `tomllib`. Starlark would need an
+  interpreter and would make config executable.
+- **JSON Schema 2020-12, checked with `jsonschema`.** It is independent of any language, so other
+  tools and editors can use the same schemas.
+- **GitHub Actions as the only generator target, with one example** (`xo-space-presubmit`). Its
+  steps are interim commands in `kinds.toml` until the recipes adapters exist. The generated
+  workflow has not been run on GitHub yet.
+- **Squash merges**, because xo-space already uses them. **Dependabot** for ecosystem rolls (the
+  plan lists it as an option). **GitHub Issues** for postmortem and fuzz tracking. **Atheris**
+  (Python) and **Jazzer.js** (JS/TS) as fuzz engines, because neither needs containers. Cron
+  schedules are in UTC.
+
+## Open decisions
+
+`python3 tools/qqcfg.py validate --todos` lists all of them. The ones for suraj:
+
+- the hour of the daily canary deploy (`channels.toml`)
+- whether an agent may roll stable back on its own when a health signal breaches (`channels.toml`)
+- whether the cap of 10 counts reverts created or only reverts landed automatically (`auto_revert.toml`)
+- the monthly CI compute ceiling (`org.toml`)
+- squash merges for every repo (`gate.toml`)
+- the PostHog host and projects (`health.toml`)
+- the owners of every area and repo, and the members of every rotation
+
+## How this fits with the other repos
+
+`gate` reads `repos`, `pipelines` and `gate` to decide which checks are required. `gardener`
+reads `auto_revert` and `flakes`. `release` and `installer` read `channels` and `health`.
+`rollers` reads `rollers` and moves the pins in `kinds`. Per the plan, `sync` will own the single
+parser library. Until it exists, every reader goes through `qqcfg.load` and writes no parser of
+its own.

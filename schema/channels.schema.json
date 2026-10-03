@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/channels.schema.json",
+  "title": "channels: release channels and promotion rules",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "source", "channel"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref"],
+      "properties": {"ref": {"type": "string", "minLength": 1}}
+    },
+    "channel": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "audience", "from", "cadence", "unattended", "promotion"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "audience": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"enum": ["agents", "humans", "everyone"]}
+          },
+          "from": {"type": "string", "minLength": 1},
+          "cadence": {"enum": ["daily", "weekly", "biweekly"]},
+          "schedule": {"$ref": "area.schema.json#/$defs/cron"},
+          "unattended": {"type": "boolean"},
+          "promotion": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["approval", "min_soak_hours", "min_consecutive_green", "health_signals"],
+            "properties": {
+              "approval": {"$ref": "area.schema.json#/$defs/approval"},
+              "min_soak_hours": {"type": "integer", "minimum": 0},
+              "min_consecutive_green": {"type": "integer", "minimum": 1},
+              "health_signals": {"$ref": "area.schema.json#/$defs/names"},
+              "rollout_percent": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "integer", "minimum": 1, "maximum": 100}
+              }
+            }
+          },
+          "rollback": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["to", "approval"],
+            "properties": {"to": {"enum": ["previous"]}, "approval": {"$ref": "area.schema.json#/$defs/approval"}}
+          }
+        },
+        "if": {"properties": {"unattended": {"const": true}}},
+        "then": {"required": ["schedule"]}
+      }
+    }
+  }
+}

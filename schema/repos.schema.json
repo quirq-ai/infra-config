@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/repos.schema.json",
+  "title": "repos: the registry of onboarded repos",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "repo"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "repo": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "source",
+          "description",
+          "visibility",
+          "default_branch",
+          "kinds",
+          "manifest",
+          "channels",
+          "owners"
+        ],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "source": {
+            "type": "string",
+            "pattern": "^[a-z0-9.-]+/quirq-ai/[A-Za-z0-9._-]+$",
+            "description": "Code host path, e.g. github.com/quirq-ai/xo-space."
+          },
+          "description": {"type": "string", "minLength": 1},
+          "visibility": {"enum": ["public"], "description": "Settled: public repos only for now."},
+          "default_branch": {"type": "string", "minLength": 1},
+          "kinds": {"$ref": "area.schema.json#/$defs/names", "minItems": 1},
+          "manifest": {"type": "string", "minLength": 1},
+          "channels": {"$ref": "area.schema.json#/$defs/names"},
+          "owners": {"$ref": "area.schema.json#/$defs/people"},
+          "deploy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["target"],
+            "properties": {"target": {"type": "string", "minLength": 1}}
+          }
+        }
+      }
+    }
+  }
+}

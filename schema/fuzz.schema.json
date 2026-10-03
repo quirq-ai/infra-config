@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/fuzz.schema.json",
+  "title": "fuzz: fuzz schedules (stub)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "engine", "findings", "schedule"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "engine": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "area.schema.json#/$defs/name"},
+      "additionalProperties": {"type": "string", "minLength": 1},
+      "description": "Fuzz engine per toolchain name (kinds.toml)."
+    },
+    "findings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tracker", "label"],
+      "properties": {"tracker": {"enum": ["github-issues"]}, "label": {"type": "string", "minLength": 1}}
+    },
+    "schedule": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "repo", "mode", "duration_minutes", "pool", "blocking"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "repo": {"$ref": "area.schema.json#/$defs/name"},
+          "mode": {"enum": ["code-change", "batch", "prune", "coverage"]},
+          "cron": {"$ref": "area.schema.json#/$defs/cron"},
+          "duration_minutes": {"type": "integer", "minimum": 1, "maximum": 360},
+          "pool": {"$ref": "area.schema.json#/$defs/name"},
+          "blocking": {"type": "boolean"}
+        },
+        "if": {"properties": {"mode": {"const": "code-change"}}},
+        "then": {"not": {"required": ["cron"]}},
+        "else": {"required": ["cron"]}
+      }
+    }
+  }
+}

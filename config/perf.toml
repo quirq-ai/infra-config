@@ -1,0 +1,22 @@
+# Benchmarks on main with alert thresholds (plan §3 P7). STUB: nothing runs until P6.
+
+[area]
+name = "perf"
+status = "stub"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["perf (P6)"]
+chromium = "chrome.perf waterfall, perf dashboard alerts, Pinpoint bisection"
+
+[[benchmark]]
+name = "xo-space-server-start"
+repo = "xo-space"
+measure = "seconds from process start to the first successful HTTP response"
+alert_regression_pct = 10
+
+[[benchmark]]
+name = "innernet-search"
+repo = "innernet"
+measure = "p50 search latency over a fixed demo index"
+alert_regression_pct = 10
+# TODO(expert): benchmark hardware, noise control, and how alerts reach bisection.

@@ -1,0 +1,54 @@
+# Health signals that gate promotion and trigger rollback. Observers never act: release and the
+# gardener read these and act through recorded operations.
+# STUB: neither repo sends PostHog events today (checked by grep, 2026-10-03).
+
+[area]
+name = "health"
+status = "stub"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["release", "gardener", "scorecard"]
+chromium = "release health checks before a staged rollout widens (inference from plan §3 P8)"
+
+[posthog]
+host = ""                # TODO(suraj): PostHog host, and one project per product repo.
+secret_scope = "posthog-read"
+# TODO(expert): xo-space runs on users' machines; decide what telemetry it may send, and consent.
+
+# compare = "previous-release" or "last-week": max_regression_pct applies
+# compare = "absolute":                         max_value applies
+[[signal]]
+name = "error-rate"
+source = "posthog"
+measure = "$exception events per 1,000 sessions"   # TODO(expert): verify PostHog's event name.
+compare = "previous-release"
+max_regression_pct = 10
+window_hours = 24
+repos = ["xo-space", "innernet"]
+
+[[signal]]
+name = "session-drop"
+source = "posthog"
+measure = "sessions with at least one $pageview"
+compare = "last-week"
+max_regression_pct = 20
+window_hours = 24
+repos = ["innernet"]
+
+[[signal]]
+name = "canary-deploy"
+source = "ci"
+measure = "failed canary deploys"
+compare = "absolute"
+max_value = 0
+window_hours = 24
+repos = ["xo-space", "innernet"]
+
+[[signal]]
+name = "main-red-minutes"
+source = "ci"
+measure = "minutes from the first red post-submit run to the next green, per week"
+compare = "absolute"
+max_value = 60
+window_hours = 168
+repos = ["xo-space", "innernet"]

@@ -1,0 +1,32 @@
+# Gardener auto-revert caps. Settled by suraj: the cap is 10 auto-reverts per rolling 24 hours.
+# Beneath it sit LUCI Bisection's finer limits for Chromium (infra/config/luci-bisection.cfg, read
+# 2026-10-03; plan §3 P6). The culprit-age limit gates submission, not creation.
+# tools/qqcfg.py refuses numbers above these: config may tighten them, and loosening them is a
+# policy change to the validator itself.
+
+[area]
+name = "auto_revert"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["gardener (P4)"]
+chromium = "LUCI Bisection; infra/config/luci-bisection.cfg"
+
+[policy]
+daily_cap = 10                        # all repos and failure types together. TODO(suraj): does the cap of 10 count reverts created or only auto-landed?
+window_hours = 24
+require_culprit_verification = true   # rerun with and without the suspect, as LUCI does
+only_clean_reverts = true             # a revert that needs conflict resolution is a normal change
+notify = ["culprit-author", "gardener"]
+
+[build_failure]           # LUCI's compile-failure analysis; "build" is the capability that failed
+create_daily_limit = 10
+submit_daily_limit = 4
+max_culprit_age_hours = 6   # 21,600 s
+
+[test_failure]
+create_daily_limit = 10
+submit_daily_limit = 0      # never auto-submitted: the revert is proposed and an owner lands it
+max_culprit_age_hours = 6
+
+# TODO(expert): whether canary deploy failures get their own budget, or stay with the release rotation.

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/pipelines.schema.json",
+  "title": "pipelines: builders",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "defaults", "builder"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "timeout_minutes"],
+      "properties": {
+        "backend": {"$ref": "area.schema.json#/$defs/name"},
+        "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 360}
+      }
+    },
+    "builder": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "repo", "pipeline", "triggers", "kinds", "capabilities", "pool"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "repo": {"$ref": "area.schema.json#/$defs/name"},
+          "pipeline": {"enum": ["presubmit", "postsubmit", "release", "perf"]},
+          "triggers": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"enum": ["change", "queue", "land", "schedule"]}
+          },
+          "channel": {"$ref": "area.schema.json#/$defs/name"},
+          "kinds": {"$ref": "area.schema.json#/$defs/names", "minItems": 1},
+          "capabilities": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"$ref": "kinds.schema.json#/$defs/capability"}
+          },
+          "pool": {"$ref": "area.schema.json#/$defs/name"},
+          "blocking": {"type": "boolean"},
+          "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 360},
+          "cancel_in_progress": {"type": "boolean"},
+          "generate": {"type": "boolean"},
+          "backend": {"$ref": "area.schema.json#/$defs/name"}
+        },
+        "if": {"properties": {"pipeline": {"const": "release"}}},
+        "then": {"required": ["channel"]}
+      }
+    }
+  }
+}

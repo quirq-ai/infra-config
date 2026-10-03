@@ -1,0 +1,75 @@
+# Org-wide policy: the system's name, execution backends, roles, pools, secret scopes, budget and
+# rotations. Every other area refers to the names defined here.
+
+[area]
+name = "org"
+status = "stub"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["gate", "gardener", "release", "rollers"]
+chromium = "infra/chromium @chromium-luci library; infradata/config"
+
+[org]
+system = "quirq infra"
+short = "qq"                  # settled: qq is the prefix for every CLI and generated name
+code_host = "github.com/quirq-ai"
+default_backend = "github"
+
+# Execution backends. Settled: v0 runs on GitHub, and execution later moves to Launchpad, quirq's
+# own cloud. Config stays backend-neutral: anything backend-specific sits in a sub-table named after
+# its backend (for example [pool.github]) or is selected by a `backend` field.
+[[backend]]
+name = "github"
+status = "active"
+
+[[backend]]
+name = "launchpad"
+status = "planned"            # TODO(expert): map Launchpad's executor, queue and secrets onto these areas.
+
+[roles]
+# Settled: policy changes and stable promotion need suraj.
+policy-owner = ["@sharmasuraj0123"]
+
+# A pool is a security boundary (Chromium docs/infra/glossary.md). Code from an open change never
+# runs where a secret is reachable: presubmit and PR fuzzing use "untrusted", while post-submit,
+# release and deploy use "trusted".
+[[pool]]
+name = "untrusted"
+secrets = []
+[pool.github]
+runs_on = "ubuntu-24.04"
+
+[[pool]]
+name = "trusted"
+secrets = ["deploy", "posthog-read"]
+[pool.github]
+runs_on = "ubuntu-24.04"      # TODO(expert): isolated runners for trusted work (plan §10 #7).
+
+[[secret_scope]]
+name = "deploy"
+mechanism = "oidc"            # short-lived credentials only
+# TODO(expert): OIDC trust per deploy target and who may mint credentials.
+
+[[secret_scope]]
+name = "posthog-read"
+mechanism = "token"           # read-only; health signals observe, they never act
+# TODO(expert): where the PostHog read key is stored and rotated.
+
+[budget]
+monthly_ci_usd = 0            # TODO(suraj): set the monthly CI compute ceiling (plan §10 #9). 0 means not set.
+
+# Rotations are seats. suraj fills `members` with people or agents.
+[[rotation]]
+name = "gardener"
+duty = "Keep main green: group failures, bisect, revert within auto_revert caps."
+members = []
+
+[[rotation]]
+name = "roller"
+duty = "Move pinned dependencies and toolchains through the gate (rollers.toml)."
+members = []
+
+[[rotation]]
+name = "release"
+duty = "Cut canary daily and prepare promotions for their human approvers (channels.toml)."
+members = []

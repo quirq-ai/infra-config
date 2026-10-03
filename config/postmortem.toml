@@ -1,0 +1,53 @@
+# Postmortem policy and failure tracking. Every trigger below opens or updates one tracked record,
+# whether or not a postmortem is written, so recurring failures become visible.
+# STUB: shape and proposed rules only.
+
+[area]
+name = "postmortem"
+status = "stub"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["gardener", "release", "scorecard"]
+chromium = "none cited in the plan"
+
+[policy]
+blameless = true
+tracker = "github-issues"
+label = "postmortem"
+drafted_by = "agent"     # drafted from captured evidence: runs, verdicts, the operation log
+reviewed_by = "owner"    # an owner of the affected repo or area
+draft_within_hours = 72
+action_items_need_issue = true
+# TODO(expert): the template and where finished postmortems live (issues or a postmortems/ folder).
+# TODO(expert): how failure records are grouped into recurring classes and reported.
+
+# postmortem = "required"   always write one
+#              "on-repeat"  write one when the same trigger fires twice in a row
+#              "track"      record it only
+[[trigger]]
+event = "stable-rollback"
+postmortem = "required"
+
+[[trigger]]
+event = "gate-bypassed"            # something landed without a green gate run on its merge result
+postmortem = "required"
+
+[[trigger]]
+event = "main-red-over-budget"     # health.toml "main-red-minutes" breached
+postmortem = "required"
+
+[[trigger]]
+event = "auto-revert-cap-exhausted"
+postmortem = "required"
+
+[[trigger]]
+event = "fuzz-security-crash"
+postmortem = "required"
+
+[[trigger]]
+event = "canary-deploy-failed"
+postmortem = "on-repeat"
+
+[[trigger]]
+event = "health-signal-breach"
+postmortem = "track"

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/auto_revert.schema.json",
+  "title": "auto_revert: gardener revert caps (LUCI Bisection style)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "policy", "build_failure", "test_failure"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["daily_cap", "window_hours", "require_culprit_verification", "only_clean_reverts", "notify"],
+      "properties": {
+        "daily_cap": {"type": "integer", "minimum": 0},
+        "window_hours": {"type": "integer", "minimum": 1},
+        "require_culprit_verification": {"type": "boolean"},
+        "only_clean_reverts": {"type": "boolean"},
+        "notify": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["culprit-author", "gardener", "owner"]}
+        }
+      }
+    },
+    "build_failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create_daily_limit", "submit_daily_limit", "max_culprit_age_hours"],
+      "properties": {
+        "create_daily_limit": {"type": "integer", "minimum": 0},
+        "submit_daily_limit": {"type": "integer", "minimum": 0},
+        "max_culprit_age_hours": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "test_failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create_daily_limit", "submit_daily_limit", "max_culprit_age_hours"],
+      "properties": {
+        "create_daily_limit": {"type": "integer", "minimum": 0},
+        "submit_daily_limit": {"type": "integer", "minimum": 0},
+        "max_culprit_age_hours": {"type": "number", "exclusiveMinimum": 0}
+      }
+    }
+  }
+}

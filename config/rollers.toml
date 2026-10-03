@@ -1,0 +1,33 @@
+# Machine-written dependency updates. Roller PRs go through the same gate, and an agent may land
+# a clean roll alone (gate.toml change_class "dependency-roll").
+# STUB: nothing reads this until the rollers repo exists (P4).
+
+[area]
+name = "rollers"
+status = "stub"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["rollers (P4)"]
+chromium = "Skia AutoRoll; roll-dep in depot_tools"
+
+[[roller]]
+name = "python-deps"
+repos = ["xo-space"]
+moves = "Python requirements"   # xo-space has >= floors and no lockfile today
+tool = "dependabot"             # simplest well-known option (plan §5.5 lists Dependabot or Renovate)
+cadence = "weekly"
+# TODO(expert): add a Python lockfile first, or rolls cannot be reproducible.
+
+[[roller]]
+name = "node-deps"
+repos = ["innernet"]
+moves = "pnpm-lock.yaml"
+tool = "dependabot"
+cadence = "weekly"
+
+[[roller]]
+name = "toolchains"
+repos = ["xo-space", "innernet"]
+moves = "toolchain pins in kinds.toml, as each toolchain's track says"
+tool = "quirq-rollers"          # built on the sync library (plan §5.5)
+cadence = "weekly"

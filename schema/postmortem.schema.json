@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quirq-ai/infra-config/schema/postmortem.schema.json",
+  "title": "postmortem: policy and failure tracking (stub)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["area", "policy", "trigger"],
+  "properties": {
+    "area": {"$ref": "area.schema.json"},
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blameless",
+        "tracker",
+        "label",
+        "drafted_by",
+        "reviewed_by",
+        "draft_within_hours",
+        "action_items_need_issue"
+      ],
+      "properties": {
+        "blameless": {"type": "boolean"},
+        "tracker": {"enum": ["github-issues"]},
+        "label": {"type": "string", "minLength": 1},
+        "drafted_by": {"enum": ["agent", "owner"]},
+        "reviewed_by": {"enum": ["owner", "policy-owner"]},
+        "draft_within_hours": {"type": "integer", "minimum": 1},
+        "action_items_need_issue": {"type": "boolean"}
+      }
+    },
+    "trigger": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["event", "postmortem"],
+        "properties": {
+          "event": {"$ref": "area.schema.json#/$defs/name"},
+          "postmortem": {"enum": ["required", "on-repeat", "track"]}
+        }
+      }
+    }
+  }
+}
