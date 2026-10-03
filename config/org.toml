@@ -1,5 +1,7 @@
 # Org-wide policy: the system's name, execution backends, roles, pools, secret scopes, budget and
 # rotations. Every other area refers to the names defined here.
+# STUB: the names, backends and policy-owner are settled; pools, secret scopes, budget and
+# rotations are placeholders for an expert to design.
 
 [area]
 name = "org"

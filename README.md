@@ -88,15 +88,19 @@ Config alone cannot loosen these. They live in `tools/qqcfg.py`, which is a poli
 changing one needs the policy-owner (suraj).
 
 - Promotion to stable needs the policy-owner. Any channel that reaches people (dev, stable) needs
-  a human owner's approval. Only canary, which is agents-only, promotes without one.
+  a human owner's approval. Only canary, which is agents-only, promotes without one. Builder
+  triggers fire without a person, so a release builder may feed only canary; builds reach dev and
+  stable only through an approved promotion.
 - canary is agents-only and runs unattended every day. It is the fully autonomous loop and serves
   as a research and test environment. dev is for humans plus agents.
 - Agents may land only clean reverts, dependency rolls and docs alone. Policy changes need the
   policy-owner, and authors cannot approve their own changes to the verification surface.
-- Auto-revert: at most 10 per rolling 24 h. Beneath that cap sit LUCI Bisection's limits: 10
-  created per failure type, 4 auto-submitted for build failures, none auto-submitted for test
-  failures, and only culprits up to 6 h old.
-- Untrusted pools hold no secrets, and presubmit and PR fuzzing run only in pools without secrets.
+- Auto-revert: at most 10 reverts created per rolling 24 h (the window may not be shorter), and
+  only clean reverts. Beneath that cap sit LUCI Bisection's limits: 10 created per failure type, 4
+  auto-submitted for build failures, none auto-submitted for test failures, and only culprits up
+  to 6 h old.
+- Untrusted pools hold no secrets. Any builder that runs code from an open change (presubmit, or a
+  `change` or `queue` trigger) and PR fuzzing run only in pools without secrets.
 - Post-submit builders are never cancelled. Repos are public only.
 
 The validator also checks the files against each other. Every repo needs a blocking presubmit
@@ -128,7 +132,9 @@ Where the plan left a choice open, I picked the simplest well-known option:
   tools and editors can use the same schemas.
 - **GitHub Actions as the only generator target, with one example** (`xo-space-presubmit`). Its
   steps are interim commands in `kinds.toml` until the recipes adapters exist. The generated
-  workflow has not been run on GitHub yet.
+  workflow has not been run on GitHub yet; its commands pass locally against xo-space (`c3cea98`,
+  Python 3.14.8). It checks less than xo-space's own `tests.yml`, which stays a required check
+  until the repo's manifest targets cover the rest.
 - **Squash merges**, because xo-space already uses them. **Dependabot** for ecosystem rolls (the
   plan lists it as an option). **GitHub Issues** for postmortem and fuzz tracking. **Atheris**
   (Python) and **Jazzer.js** (JS/TS) as fuzz engines, because neither needs containers. Cron
@@ -140,7 +146,6 @@ Where the plan left a choice open, I picked the simplest well-known option:
 
 - the hour of the daily canary deploy (`channels.toml`)
 - whether an agent may roll stable back on its own when a health signal breaches (`channels.toml`)
-- whether the cap of 10 counts reverts created or only reverts landed automatically (`auto_revert.toml`)
 - the monthly CI compute ceiling (`org.toml`)
 - squash merges for every repo (`gate.toml`)
 - the PostHog host and projects (`health.toml`)

@@ -1,7 +1,9 @@
 # Policy paths need the policy-owner (org.toml [roles]; settled: suraj). The author of a change
-# cannot approve it. README.md and requirements.txt are deliberately left out: docs and
-# dependency rolls may land with a green gate alone (gate.toml change classes).
+# cannot approve it. Every path is a policy path unless listed at the bottom with no owner.
+# README.md and requirements.txt are deliberately left unowned: docs and dependency rolls may land
+# with a green gate alone (gate.toml change classes). Later lines win.
 # Area owners go in each config file's [area] owners list, which suraj fills in.
+*               @sharmasuraj0123
 /config/        @sharmasuraj0123
 /schema/        @sharmasuraj0123
 /tools/         @sharmasuraj0123
@@ -9,3 +11,5 @@
 /tests/         @sharmasuraj0123
 /.github/       @sharmasuraj0123
 /AGENTS.md      @sharmasuraj0123
+/README.md
+/requirements.txt

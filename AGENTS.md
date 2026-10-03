@@ -19,7 +19,7 @@ needs the policy-owner (suraj):
 
 | You changed | Class | Approval |
 |---|---|---|
-| `config/`, `schema/`, `tools/`, `generated/`, `tests/`, `.github/`, `AGENTS.md` | policy | policy-owner (suraj) |
+| `config/`, `schema/`, `tools/`, `generated/`, `tests/`, `.github/`, `AGENTS.md`, or any new path | policy | policy-owner (suraj) |
 | `README.md` only | docs | none; an agent may land it alone once the gate is green |
 | `requirements.txt` pin bump only | dependency-roll | none, if opened by the roller rotation |
 | a clean `git revert` of a landed PR | clean-revert | none |

@@ -16,9 +16,9 @@ chromium = "recipes in chromium/tools/build + recipes-py; toolchain pins checked
 [[toolchain]]
 name = "python"
 track = "latest"         # settled: the latest Python
-pin = "3.14"             # latest stable in GitHub's actions/python-versions manifest on 2026-10-03
+pin = "3.14"             # latest stable (3.14.8) on 2026-10-03; 3.15.0 is at rc3, final due 2026-10-09 (PEP 790)
 [toolchain.github]
-uses = "actions/setup-python@v6"
+uses = "actions/setup-python@v7"
 version_input = "python-version"
 
 [[toolchain]]

@@ -32,6 +32,7 @@ LUCI_CAPS = {  # failure type: (max reverts created per day, max auto-submitted 
 MAX_CULPRIT_AGE_HOURS = 6
 AGENT_ALONE_CLASSES = {"clean-revert", "dependency-roll", "docs"}
 HUMAN_APPROVALS = {"human-owner", "policy-owner"}
+UNLANDED_TRIGGERS = {"change", "queue"}  # run code from an open change, before it lands
 
 TODO_RE = re.compile(r"TODO\((suraj|expert)\):\s*(.+)")
 
@@ -230,6 +231,11 @@ def check_policy(cfg: dict, err) -> int:
         "an author may not approve their own verification-surface change")
     cap = ar["policy"]["daily_cap"]
     inv(cap <= AUTO_REVERT_DAILY_CAP, f"auto_revert daily_cap may not exceed {AUTO_REVERT_DAILY_CAP}")
+    inv(ar["policy"]["window_hours"] >= 24,
+        "auto_revert window_hours may not be under 24, or daily_cap would allow more than "
+        f"{AUTO_REVERT_DAILY_CAP} reverts a day")
+    inv(ar["policy"]["only_clean_reverts"] is True,
+        "auto_revert may land only clean reverts; a revert that needs edits is a normal change")
     for ftype, (create, submit) in LUCI_CAPS.items():
         caps = ar[ftype]
         inv(caps["create_daily_limit"] <= min(create, cap),
@@ -240,9 +246,17 @@ def check_policy(cfg: dict, err) -> int:
             f"auto_revert {ftype} max_culprit_age_hours may not exceed {MAX_CULPRIT_AGE_HOURS}")
     inv(not pools.get("untrusted", {"secrets": ["missing"]})["secrets"], "the untrusted pool holds no secrets")
     for b in cfg["pipelines"]["builder"]:
-        if b["pipeline"] == "presubmit":
+        if b["pipeline"] == "presubmit" or UNLANDED_TRIGGERS & set(b["triggers"]):
             inv(not pools.get(b["pool"], {}).get("secrets", ["?"]),
-                f"presubmit builder {b['name']!r} runs PR code, so its pool may hold no secrets")
+                f"builder {b['name']!r} runs PR code (presubmit or a change/queue trigger), "
+                "so its pool may hold no secrets")
+        if b["pipeline"] == "release":
+            # Every builder trigger fires without a person, so a release builder may feed only a
+            # channel that promotes without one. Builds reach dev and stable by approved promotion.
+            target = chans.get(b.get("channel"), {}).get("promotion", {}).get("approval")
+            inv(target == "none",
+                f"release builder {b['name']!r} would deploy to {b.get('channel')!r} on a trigger, "
+                "but promotion into that channel needs approval (channels.toml)")
         if b["pipeline"] == "postsubmit":
             inv(b.get("cancel_in_progress") is not True, f"postsubmit builder {b['name']!r} is never cancelled")
     for s in cfg["fuzz"]["schedule"]:
@@ -255,7 +269,7 @@ def check_policy(cfg: dict, err) -> int:
 # --- generation (one backend: github; one example: builders with generate = true) -------------
 # Everything GitHub-specific in this repo's tooling lives in this section.
 
-CHECKOUT = "actions/checkout@v6"  # TODO(expert): pin actions by commit SHA (plan P5).
+CHECKOUT = "actions/checkout@v7"  # TODO(expert): pin actions by commit SHA (plan P5).
 GITHUB_EVENTS = {"change": "pull_request", "queue": "merge_group", "land": "push"}
 
 

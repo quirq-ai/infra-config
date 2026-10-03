@@ -79,6 +79,37 @@ class BadChangesFail(unittest.TestCase):
         (self.tmp / "config/perf.toml").unlink()
         self.assertFails("config/perf.toml: required area is missing")
 
+    def test_missing_required_field_rejected(self):
+        self.edit("config/repos.toml", 'visibility = "public"\n', "")
+        self.assertFails("'visibility' is a required property")
+
+    def test_unknown_repo_reference_rejected(self):
+        self.edit("config/pipelines.toml", 'repo = "innernet"', 'repo = "innernet-typo"')
+        self.assertFails("unknown repo 'innernet-typo'")
+
+    def test_release_builder_cannot_skip_human_approval(self):
+        # A builder that deploys to stable on every landing would bypass suraj's promotion.
+        self.edit("config/pipelines.toml", "# --- innernet", "\n".join([
+            "[[builder]]", 'name = "xo-space-stable-deploy"', 'repo = "xo-space"', 'pipeline = "release"',
+            'triggers = ["land"]', 'channel = "stable"', 'kinds = ["python-service"]',
+            'capabilities = ["deploy"]', 'pool = "trusted"', "", "# --- innernet"]))
+        self.assertFails("release builder 'xo-space-stable-deploy' would deploy to 'stable'")
+
+    def test_auto_revert_window_cannot_shrink(self):
+        # 10 per rolling hour would be 240 a day.
+        self.edit("config/auto_revert.toml", "window_hours = 24", "window_hours = 1")
+        self.assertFails("window_hours may not be under 24")
+
+    def test_auto_revert_lands_only_clean_reverts(self):
+        self.edit("config/auto_revert.toml", "only_clean_reverts = true", "only_clean_reverts = false")
+        self.assertFails("only clean reverts")
+
+    def test_pr_code_never_runs_with_secrets(self):
+        # A non-presubmit builder triggered by a change still runs PR code.
+        self.edit("config/pipelines.toml", 'pipeline = "postsubmit"\ntriggers = ["land"]',
+                  'pipeline = "postsubmit"\ntriggers = ["land", "change"]')
+        self.assertFails("runs PR code")
+
 
 if __name__ == "__main__":
     unittest.main()
