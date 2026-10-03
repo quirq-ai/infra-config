@@ -15,6 +15,10 @@ to take it over. Nothing reads this config yet except its own tool, `qqcfg`. Eac
 says whether it is a `seed` (its values are decided) or a `stub` (only the shape is there, and the
 values are placeholders).
 
+The plan behind this repo is in [docs/plan.md](docs/plan.md), and the 51 v0 work items for all
+thirteen quirq infra repos are in [docs/v0.md](docs/v0.md). Both are reference copies of suraj's
+originals, and changing them needs his approval.
+
 ## Quick start
 
 ```sh
@@ -52,6 +56,7 @@ infra-config/
 ├── generated/github/       generated output for the github backend; never edit by hand
 ├── tests/test_qqcfg.py     the validator's own tests
 ├── .github/                CODEOWNERS and this repo's own validate workflow
+├── docs/                   reference copies of the plan (plan.md) and the v0 work items (v0.md)
 └── AGENTS.md               how agents change this repo safely
 ```
 
