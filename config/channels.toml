@@ -22,7 +22,7 @@ name = "canary"
 audience = ["agents"]
 from = "lkgr"
 cadence = "daily"
-schedule = "0 6 * * *"   # cron, UTC. TODO(suraj): pick the canary hour.
+schedule = "17 6 * * *"  # cron, UTC, off the hour: GitHub may delay or drop top-of-hour runs. TODO(suraj): pick the canary hour.
 unattended = true        # nobody watches it; failures go to the gardener and postmortem.toml
 [channel.promotion]
 approval = "none"        # automatic once lkgr moves
@@ -46,7 +46,8 @@ health_signals = ["error-rate", "canary-deploy"]
 name = "stable"
 audience = ["everyone"]
 from = "dev"
-cadence = "biweekly"     # Chromium's stable cadence (plan §10 #8)
+cadence = "biweekly"     # a target, as Chromium's two-week stable (plan §10.2 #8); suraj approves each promotion
+# TODO(suraj): confirm the two-week stable target.
 unattended = false
 [channel.promotion]
 approval = "policy-owner"   # suraj

@@ -24,7 +24,7 @@ REQUIRED_AREAS = ("org", "kinds", "repos", "pipelines", "gate", "flakes", "auto_
 
 # Settled policy that config alone cannot loosen. Changing these lines is itself a policy change,
 # and this file is a policy path (CODEOWNERS), so it needs the policy-owner.
-AUTO_REVERT_DAILY_CAP = 10  # settled by suraj
+AUTO_REVERT_DAILY_CAP = 10  # suraj's number (D5); counting reverts created is a default he can change
 LUCI_CAPS = {  # failure type: (max reverts created per day, max auto-submitted per day); luci-bisection.cfg
     "build_failure": (10, 4),
     "test_failure": (10, 0),

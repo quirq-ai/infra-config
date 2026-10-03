@@ -16,13 +16,20 @@ tracker = "github-issues"
 label = "postmortem"
 drafted_by = "agent"     # drafted from captured evidence: runs, verdicts, the operation log
 reviewed_by = "owner"    # an owner of the affected repo or area
-draft_within_hours = 72
+draft_within_hours = 24  # plan v1 V1-GAR-03: a draft for every canary rollback within 24 h
 action_items_need_issue = true
+record_needs = ["culprit", "fix", "covering-test"]   # a failure record closes only when all are linked (plan §5.10)
 # TODO(expert): the template and where finished postmortems live (issues or a postmortems/ folder).
 # TODO(expert): how failure records are grouped into recurring classes and reported.
 
-# postmortem = "required"   always write one
-#              "on-repeat"  write one when the same trigger fires twice in a row
+# A failure class seen twice must end in a new check, not just another postmortem (plan §5.10).
+[recurrence]
+same_class_count = 2     # proposal: 2 in 14 days (plan v1 V1-CFG-04)
+window_days = 14
+opens = "close-the-class"   # a work item, done only when one of closed_by lands and runs
+closed_by = ["test", "fuzz-target", "fuzz-corpus-entry", "gate", "health-signal"]
+
+# postmortem = "required"   always write one (agent-drafted, blameless)
 #              "track"      record it only
 [[trigger]]
 event = "stable-rollback"
@@ -45,8 +52,8 @@ event = "fuzz-security-crash"
 postmortem = "required"
 
 [[trigger]]
-event = "canary-deploy-failed"
-postmortem = "on-repeat"
+event = "canary-deploy-failed"     # every held or rolled-back canary (plan §5.7, §5.10)
+postmortem = "required"
 
 [[trigger]]
 event = "health-signal-breach"

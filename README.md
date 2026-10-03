@@ -67,7 +67,7 @@ read first).
 | `org` | stub | Isolated runners for trusted work; OIDC trust for each deploy target; mapping Launchpad onto the backend seam. |
 | `kinds` | seed | Recipes adapters for `python-service`, `pytest`, `node-app` and `static-docs` that replace the `interim` commands; github provisioning for node. |
 | `repos` | seed | Each repo's own `infra/repo.toml` (with `sync`); moving xo-space from Python 3.12 to the org pin; confirming innernet's deploy target. |
-| `pipelines` | seed | Generating every builder, not just the one example; getting generated workflows into product repos; deciding whether builders move into each repo's `infra/`. |
+| `pipelines` | seed | Generating every builder, not just the one example; getting generated workflows into product repos. |
 | `gate` | seed | Making the change classes machine-checkable; the gate check app; tree closers. suraj applies the GitHub settings (merge queue, required checks). |
 | `flakes` | stub | Results store, exoneration thresholds, and enforcing quarantine expiry. |
 | `auto_revert` | seed | A gardener that stays within the caps; whether deploy failures get their own budget. |
@@ -96,9 +96,9 @@ changing one needs the policy-owner (suraj).
 - Agents may land only clean reverts, dependency rolls and docs alone. Policy changes need the
   policy-owner, and authors cannot approve their own changes to the verification surface.
 - Auto-revert: at most 10 reverts created per rolling 24 h (the window may not be shorter), and
-  only clean reverts. Beneath that cap sit LUCI Bisection's limits: 10 created per failure type, 4
-  auto-submitted for build failures, none auto-submitted for test failures, and only culprits up
-  to 6 h old.
+  only clean reverts. The 10 is suraj's; counting reverts created is a default he can change.
+  Beneath that cap sit LUCI Bisection's limits: 10 created per failure type, 4 auto-submitted for
+  build failures, none auto-submitted for test failures, and only culprits up to 6 h old.
 - Untrusted pools hold no secrets. Any builder that runs code from an open change (presubmit, or a
   `change` or `queue` trigger) and PR fuzzing run only in pools without secrets.
 - Post-submit builders are never cancelled. Repos are public only.
@@ -145,7 +145,10 @@ Where the plan left a choice open, I picked the simplest well-known option:
 `python3 tools/qqcfg.py validate --todos` lists all of them. The ones for suraj:
 
 - the hour of the daily canary deploy (`channels.toml`)
+- whether the cap of 10 keeps counting reverts created, the default, or counts only auto-landed
+  ones (`auto_revert.toml`)
 - whether an agent may roll stable back on its own when a health signal breaches (`channels.toml`)
+- the stable target of every two weeks, each promotion still his to approve (`channels.toml`)
 - the monthly CI compute ceiling (`org.toml`)
 - squash merges for every repo (`gate.toml`)
 - the PostHog host and projects (`health.toml`)

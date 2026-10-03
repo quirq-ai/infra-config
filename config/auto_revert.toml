@@ -1,4 +1,5 @@
-# Gardener auto-revert caps. Settled by suraj: at most 10 reverts created per rolling 24 hours.
+# Gardener auto-revert caps: at most 10 reverts created per rolling 24 hours. The 10 is suraj's
+# (plan D5). Counting reverts created is a default I picked, not his decision; he can change it.
 # Beneath it sit LUCI Bisection's finer limits for Chromium (infra/config/luci-bisection.cfg, read
 # 2026-10-03; plan §3 P6). The culprit-age limit gates submission, not creation.
 # tools/qqcfg.py refuses numbers above these: config may tighten them, and loosening them is a
@@ -14,6 +15,7 @@ chromium = "LUCI Bisection; infra/config/luci-bisection.cfg"
 
 [policy]
 daily_cap = 10                        # reverts created (proposed or landed), all repos and failure types together
+# TODO(suraj): keep the default that the cap of 10 counts reverts created, or count only auto-landed ones (plan §10.3 O2).
 window_hours = 24                     # may not be shorter: the cap is per day
 require_culprit_verification = true   # rerun with and without the suspect, as LUCI does
 only_clean_reverts = true             # a revert that needs conflict resolution is a normal change
