@@ -217,3 +217,7 @@ reads `auto_revert` (and later `flakes`). `release` and `installer` read `channe
 `rollers` reads `rollers` and moves the pins in `kinds`. Per the plan, `sync` will own the single
 parser library. Until it exists, every reader goes through `qqcfg.load` and writes no parser of
 its own.
+
+## Licence
+
+Apache-2.0; see [LICENSE](LICENSE).
