@@ -20,13 +20,14 @@ Who reads it today (checked in each repo's main on 2026-10-04):
 | Reader | Reads |
 | --- | --- |
 | `qqcfg` here (validate, generate, deliver) | every area; `pipelines`, `kinds`, `repos` and `org` pools shape the generated workflows |
-| quirq-ai/gate | `gate`, `org`, `pipelines`, `repos` |
-| quirq-ai/rollers | `rollers`, `kinds`, `repos` |
+| quirq-ai/gate | `gate`, `kinds`, `org`, `pipelines`, `repos` |
+| quirq-ai/rollers | `rollers`, `kinds`, `org`, `repos` |
 | quirq-ai/recipes (`qqrecipes check-kinds`) | `kinds` |
 | quirq-ai/sync | `kinds` |
+| quirq-ai/test-pipelines (`qqresults`, when given `--infra-config`) | `flakes` |
 
-No reader yet: `auto_revert`, `channels`, `flakes`, `fuzz`, `health`, `perf` and `postmortem`. Their
-readers come with V0-TST-03 (flakes), V0-REL-03 (channels, health), V0-GAR-03/04 (auto_revert,
+No reader yet: `auto_revert`, `channels`, `fuzz`, `health`, `perf` and `postmortem`. Their readers
+come with V0-REL-02/03 (channels, health), V0-GAR-03/04 (auto_revert,
 postmortem), V0-REC-04 (fuzz) and V0-PRF-01 (perf), so V0-CFG-03's "their readers use them" is met
 only once those land.
 
@@ -38,13 +39,15 @@ originals, and changing them needs his approval.
 
 | Item | PRs | State |
 | --- | --- | --- |
-| V0-CFG-01 schema, validator, CI | skeleton (87fef5f) | merged; waits on suraj's merge queue with `validate` required |
+| V0-CFG-01 schema, validator, CI | skeleton (7228ab2) | merged; waits on suraj's merge queue with `validate` required |
 | V0-ORG-01 the 13 repos | #1 | merged |
 | V0-CFG-03 fill the stubs | #2 | merged; readers listed above, several still to come |
-| V0-CFG-02 builders and drift check | #3, #5, #7, #8; xo-space #211, innernet #37 | generator merged; delivery PRs wait on suraj; drift fixes in review; org ruleset waits on #8 |
+| V0-CFG-02 builders and drift check | #3, #7 (S5 test reports), #8 (drift fixes); xo-space #211, innernet #37 | generator merged; delivery PRs wait on suraj; drift fixes in review; org ruleset waits on #8 |
 | V0-CFG-04 suraj's v0 decisions | #4 | 4 `TODO(suraj, v0)` values wait on suraj |
 | V0-ORG-02 owners and rotations | #4 | `validate` lists them; suraj fills them |
 | V0-ORG-04 budget readable | #4 | `qqcfg get org budget`; the ceiling waits on suraj |
+| V0-TST-01 result sink in test builders (asked by test-pipelines) | #5 | merged |
+| V0-PRF-01 `bench` in python-service and node-app (asked by perf) | #6 | merged |
 | V0-CFG-05 one source for policy | none | waits on V0-GAR-03 and V0-REL-03 |
 
 ## Quick start
