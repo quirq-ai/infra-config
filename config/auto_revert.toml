@@ -20,6 +20,11 @@ window_hours = 24                     # may not be shorter: the cap is per day
 require_culprit_verification = true   # rerun with and without the suspect, as LUCI does
 only_clean_reverts = true             # a revert that needs conflict resolution is a normal change
 notify = ["culprit-author", "gardener"]
+# Repos (names from repos.toml) where the gardener may queue its reverts to land (V0-CFG-05). Empty
+# means it only proposes: it opens a revert PR assigned to the policy-owner and never queues it.
+# Empty in v0: repos.toml lists only xo-space and innernet, and suraj decided (2026-10-04) that he
+# merges their PRs, reverts included. Adding a repo is a policy change.
+auto_land_repos = []
 
 [build_failure]           # LUCI's compile-failure analysis; "build" is the capability that failed
 create_daily_limit = 10
