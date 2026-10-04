@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/quirq-ai/infra-config/schema/org.schema.json",
-  "title": "org: name, backends, roles, pools, secret scopes, budget, rotations",
+  "title": "org: name, backends, roles, pools, secret scopes, budget, rotations, infra repos",
   "type": "object",
   "additionalProperties": false,
-  "required": ["area", "org", "backend", "roles", "pool", "secret_scope", "budget", "rotation"],
+  "required": ["area", "org", "backend", "roles", "pool", "secret_scope", "budget", "rotation", "infra_repo"],
   "properties": {
     "area": {"$ref": "area.schema.json"},
     "org": {
@@ -70,6 +70,24 @@
       "additionalProperties": false,
       "required": ["monthly_ci_usd"],
       "properties": {"monthly_ci_usd": {"type": "number", "minimum": 0}}
+    },
+    "infra_repo": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "source", "visibility", "wave", "owns", "chromium", "owners"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "source": {"type": "string", "pattern": "^github\\.com/quirq-ai/[a-z0-9-]+$"},
+          "visibility": {"enum": ["public"]},
+          "wave": {"type": "integer", "minimum": 1, "maximum": 4},
+          "owns": {"type": "string", "minLength": 1},
+          "chromium": {"type": "string", "minLength": 1},
+          "owners": {"$ref": "area.schema.json#/$defs/people"}
+        }
+      }
     },
     "rotation": {
       "type": "array",

@@ -60,6 +60,126 @@ mechanism = "token"           # read-only; health signals observe, they never ac
 [budget]
 monthly_ci_usd = 0            # TODO(suraj): set the monthly CI compute ceiling (plan §10 #9). 0 means not set.
 
+# The thirteen quirq infra repos (plan §5.5), one job each. Settled: all public (D2), all built as v0
+# base versions (D3). suraj created them on 2026-10-04. `wave` is the v0 start order (v0 launch kit).
+# tools/qqcfg.py checks this list is exactly the plan's thirteen. Product repos are in repos.toml.
+[[infra_repo]]
+name = "depot"
+source = "github.com/quirq-ai/depot"
+visibility = "public"
+wave = 2
+owns = "The qq CLI: bootstrap, fetch, sync, build, test, try, upload, land, roll, status."
+chromium = "depot_tools"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "sync"
+source = "github.com/quirq-ai/sync"
+visibility = "public"
+wave = 1
+owns = "The manifest schema, the only parser and editor library, the resolver, mirroring policy."
+chromium = "gclient, DEPS and gclient_eval"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "recipes"
+source = "github.com/quirq-ai/recipes"
+visibility = "public"
+wave = 2
+owns = "Adapters per kind: python-service, pytest, node-app, static-docs, later container-image."
+chromium = "chromium/tools/build recipes and recipes-py"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "infra-config"
+source = "github.com/quirq-ai/infra-config"
+visibility = "public"
+wave = 1
+owns = "Org-wide policy and builder definitions as data, validated by qqcfg (this repo)."
+chromium = "infra/config with lucicfg; infradata/config"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "test-pipelines"
+source = "github.com/quirq-ai/test-pipelines"
+visibility = "public"
+wave = 3
+owns = "Result schema and sinks, results store, flakes, quarantine, retry and exoneration."
+chromium = "ResultDB, ResultSink and LUCI Analysis"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "gate"
+source = "github.com/quirq-ai/gate"
+visibility = "public"
+wave = 3
+owns = "Required checks from config, merge-queue integration, quotas, tree status."
+chromium = "LUCI CV and commit-queue.cfg"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "toolchains"
+source = "github.com/quirq-ai/toolchains"
+visibility = "public"
+wave = 1
+owns = "Hermetic toolchains built by CI, staged, promoted and pinned by digest."
+chromium = "CIPD, 3pp and the clang upload/promote flow"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "remote-build"
+source = "github.com/quirq-ai/remote-build"
+visibility = "public"
+wave = 3
+owns = "Action cache, then remote execution, with typed fallback counters (the goma slot)."
+chromium = "goma, reclient, Siso and RBE"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "gardener"
+source = "github.com/quirq-ai/gardener"
+visibility = "public"
+wave = 4
+owns = "Failure grouping, bisection, reverts within budget, tree status, rotation."
+chromium = "gardeners, Sheriff-o-Matic, LUCI Bisection, tree closers"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "rollers"
+source = "github.com/quirq-ai/rollers"
+visibility = "public"
+wave = 2
+owns = "Automatic pin updates for deps, toolchains and adapters, through sync."
+chromium = "Skia AutoRoll"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "release"
+source = "github.com/quirq-ai/release"
+visibility = "public"
+wave = 4
+owns = "Versioning, lkgr, channels, promotion, notes, deploy operations, rollback."
+chromium = "V8 release scripts and lkgr finder; LUCI promote.py"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "installer"
+source = "github.com/quirq-ai/installer"
+visibility = "public"
+wave = 4
+owns = "Client installers and updaters that follow a channel."
+chromium = "chrome/updater and chrome/tools/build/win"
+owners = []            # suraj fills in
+
+[[infra_repo]]
+name = "perf"
+source = "github.com/quirq-ai/perf"
+visibility = "public"
+wave = 3
+owns = "Benchmarks, dashboard, alert thresholds, bisection."
+chromium = "chrome.perf, the perf dashboard and Pinpoint"
+owners = []            # suraj fills in
+
 # Rotations are seats. suraj fills `members` with people or agents.
 [[rotation]]
 name = "gardener"

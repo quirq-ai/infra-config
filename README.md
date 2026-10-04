@@ -38,7 +38,8 @@ write. `.github/workflows/validate.yml` runs it with the tests on every PR and i
 ```text
 infra-config/
 ├── config/                 the source of truth: one TOML file per area, parsed and never executed
-│   ├── org.toml            system name, backends, roles, pools, secret scopes, budget, rotations
+│   ├── org.toml            system name, backends, roles, pools, secret scopes, budget, rotations,
+│   │                       and the thirteen quirq infra repos
 │   ├── kinds.toml          toolchains and target kinds (year one: latest Python, latest Next.js)
 │   ├── repos.toml          registry of onboarded repos: xo-space, innernet
 │   ├── pipelines.toml      builders: presubmit, postsubmit, release

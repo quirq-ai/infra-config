@@ -111,5 +111,18 @@ class BadChangesFail(unittest.TestCase):
         self.assertFails("runs PR code")
 
 
+    def test_all_thirteen_infra_repos_listed(self):
+        self.edit("config/org.toml", '[[infra_repo]]\nname = "perf"', '[[infra_repo]]\nname = "perf-typo"')
+        self.assertFails("infra repo 'perf' is missing")
+
+    def test_infra_repos_are_public(self):
+        self.edit("config/org.toml", 'visibility = "public"', 'visibility = "private"')
+        self.assertFails("infra_repo/0/visibility")
+
+    def test_infra_repo_source_matches_name(self):
+        self.edit("config/org.toml", 'source = "github.com/quirq-ai/sync"', 'source = "github.com/quirq-ai/gclient"')
+        self.assertFails("infra repo 'sync' source must be")
+
+
 if __name__ == "__main__":
     unittest.main()

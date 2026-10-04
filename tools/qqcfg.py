@@ -22,6 +22,11 @@ ROOT = Path(__file__).resolve().parent.parent
 REQUIRED_AREAS = ("org", "kinds", "repos", "pipelines", "gate", "flakes", "auto_revert",
                   "rollers", "channels", "fuzz", "postmortem", "health", "perf")
 
+# The thirteen quirq infra repos (plan §5.5; D3 builds them all). org.toml [[infra_repo]] must list
+# exactly these. Renaming, adding or dropping one is a plan change, so it is a change to this line.
+QQ_REPOS = ("depot", "sync", "recipes", "infra-config", "test-pipelines", "gate", "toolchains",
+            "remote-build", "gardener", "rollers", "release", "installer", "perf")
+
 # Settled policy that config alone cannot loosen. Changing these lines is itself a policy change,
 # and this file is a policy path (CODEOWNERS), so it needs the policy-owner.
 AUTO_REVERT_DAILY_CAP = 10  # suraj's number (D5); counting reverts created is a default he can change
@@ -104,7 +109,8 @@ def check_refs(cfg: dict, err) -> None:
                          ("org pools", cfg["org"]["pool"]), ("pipelines builders", builders),
                          ("channels", chans), ("health signals", cfg["health"]["signal"]),
                          ("fuzz schedules", cfg["fuzz"]["schedule"]), ("rollers", cfg["rollers"]["roller"]),
-                         ("perf benchmarks", cfg["perf"]["benchmark"])]:
+                         ("perf benchmarks", cfg["perf"]["benchmark"]),
+                         ("org infra repos", cfg["org"]["infra_repo"])]:
         names = [i["name"] for i in items]
         for dup in sorted({n for n in names if names.count(n) > 1}):
             err(f"{label}: duplicate name {dup!r}")
@@ -115,6 +121,17 @@ def check_refs(cfg: dict, err) -> None:
                      *((f"pipelines: builder {x['name']!r} backend", x["backend"]) for x in builders if "backend" in x)]:
         if b not in backends:
             err(f"{where}: unknown backend {b!r} (see org.toml [[backend]])")
+    infra = by_name(cfg["org"]["infra_repo"])
+    for name in QQ_REPOS:
+        if name not in infra:
+            err(f"org: infra repo {name!r} is missing (plan §5.5 lists thirteen)")
+    for name, r in infra.items():
+        if name not in QQ_REPOS:
+            err(f"org: infra repo {name!r} is not one of the plan's thirteen")
+        if r["source"] != f"{cfg['org']['org']['code_host']}/{name}":
+            err(f"org: infra repo {name!r} source must be {cfg['org']['org']['code_host']}/{name}")
+        if name in repos:
+            err(f"org: {name!r} is both an infra repo and a product repo (repos.toml)")
     for k in kinds.values():
         if "toolchain" in k and k["toolchain"] not in toolchains:
             err(f"kinds: {k['name']}: unknown toolchain {k['toolchain']!r}")
@@ -380,7 +397,7 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
     check_refs(cfg, errors.append)
     refs_ok = len(errors) == n
     if refs_ok:
-        report.append("ok    refs       repos, kinds, pools, builders, channels, signals, triggers")
+        report.append("ok    refs       repos, infra repos, kinds, pools, builders, channels, signals, triggers")
     n = len(errors)
     checks = check_policy(cfg, errors.append)
     if len(errors) == n:
@@ -397,7 +414,9 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
     report.append(f"note  status     {len(cfg) - len(stubs)} seed, {len(stubs)} stub: {', '.join(stubs)}")
     unowned = [a for a, c in cfg.items() if not c["area"]["owners"]]
     unowned_repos = [r["name"] for r in cfg["repos"]["repo"] if not r["owners"]]
-    report.append(f"note  owners     empty in {len(unowned)} areas and {len(unowned_repos)} repos (suraj assigns)")
+    unowned_infra = [r["name"] for r in cfg["org"]["infra_repo"] if not r["owners"]]
+    report.append(f"note  owners     empty in {len(unowned)} areas, {len(unowned_repos)} product repos and "
+                  f"{len(unowned_infra)} infra repos (suraj assigns)")
     report.append(f"note  todos      {len(todos(root))} open (python3 tools/qqcfg.py validate --todos)")
     return errors, report
 
