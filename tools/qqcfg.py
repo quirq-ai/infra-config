@@ -414,6 +414,11 @@ def render(cfg: dict) -> dict[str, str]:
                       *("          " + line for line in DRIFT_CHECK.splitlines())]
         for name, cmd in steps:
             lines += [f"      - name: {q(name)}", f"        run: {q(cmd)}"]
+        if "test" in b["capabilities"]:
+            # V0-TST-01: store this run's test results even when a test step failed.
+            res = defaults["results"]
+            lines += ['      - name: "qq result sink"', "        if: always()", f"        uses: {res['sink']}",
+                      "        with:", "          junit: |", *(f"            {g}" for g in res["junit"])]
         out[f"github/{b['repo']}/qq-{b['name']}.yml"] = with_digest("\n".join(lines) + "\n")
     return out
 
