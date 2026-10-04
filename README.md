@@ -11,13 +11,44 @@ stale. This repo keeps that model (source, then generated output, then an in-syn
 smaller parts.
 
 **Status: v0 skeleton, built width-first.** Every area is declared in enough detail for an expert
-to take it over. Nothing reads this config yet except its own tool, `qqcfg`. Each file's header
-says whether it is a `seed` (its values are decided) or a `stub` (only the shape is there, and the
-values are placeholders).
+to take it over. Each file's header says whether it is a `seed` (its values are decided) or a
+`stub` (only the shape is there, and the values are placeholders), and its `[area] read_by` names
+the readers it is meant for.
+
+Who reads it today (checked in each repo's main on 2026-10-04):
+
+| Reader | Reads |
+| --- | --- |
+| `qqcfg` here (validate, generate, deliver) | every area; `pipelines`, `kinds`, `repos` and `org` pools shape the generated workflows |
+| quirq-ai/gate | `gate`, `kinds`, `org`, `pipelines`, `repos` |
+| quirq-ai/rollers | `rollers`, `kinds`, `org`, `repos` |
+| quirq-ai/recipes (`qqrecipes check-kinds`) | `kinds` |
+| quirq-ai/sync | `kinds` |
+| quirq-ai/test-pipelines (`qqresults`, when given `--infra-config`) | `flakes` |
+
+No reader yet: `auto_revert`, `channels`, `fuzz`, `health`, `perf` and `postmortem`. Their readers
+come with V0-REL-02/03 (channels, health), V0-GAR-03/04 (auto_revert,
+postmortem), V0-REC-04 (fuzz) and V0-PRF-01 (perf), so V0-CFG-03's "their readers use them" is met
+only once those land.
 
 The plan behind this repo is in [docs/plan.md](docs/plan.md), and the 51 v0 work items for all
 thirteen quirq infra repos are in [docs/v0.md](docs/v0.md). Both are reference copies of suraj's
 originals, and changing them needs his approval.
+
+## v0 status
+
+| Item | PRs | State |
+| --- | --- | --- |
+| V0-CFG-01 schema, validator, CI | skeleton (7228ab2) | merged; waits on suraj's merge queue with `validate` required |
+| V0-ORG-01 the 13 repos | #1 | merged |
+| V0-CFG-03 fill the stubs | #2 | merged; readers listed above, several still to come |
+| V0-CFG-02 builders and drift check | #3, #7 (S5 test reports), #8 (drift fixes); xo-space #211, innernet #37 | generator merged; delivery PRs wait on suraj; drift fixes in review; org ruleset waits on #8 |
+| V0-CFG-04 suraj's v0 decisions | #4 | 4 `TODO(suraj, v0)` values wait on suraj |
+| V0-ORG-02 owners and rotations | #4 | `validate` lists them; suraj fills them |
+| V0-ORG-04 budget readable | #4 | `qqcfg get org budget`; the ceiling waits on suraj |
+| V0-TST-01 result sink in test builders (asked by test-pipelines) | #5 | merged |
+| V0-PRF-01 `bench` in python-service and node-app (asked by perf) | #6 | merged |
+| V0-CFG-05 one source for policy | none | waits on V0-GAR-03 and V0-REL-03 |
 
 ## Quick start
 
@@ -145,8 +176,13 @@ Where the plan left a choice open, I picked the simplest well-known option:
   `python3 tools/qqcfg.py deliver <repo> <checkout>` (V0-CFG-02). The binding drift check is
   `.github/workflows/qq-drift.yml` here, run as an organization-required workflow in every product
   repo: it fails a PR whose `qq-*.yml` stubs differ from infra-config `main`, are renamed or missing,
-  or whose own workflows define a generated job. A PR cannot edit it, because it lives here. Each stub
-  also carries a `# qq-digest:` line and a fast in-repo drift step. Post-submit builders also run on `workflow_dispatch` with a `commit` input, so the gardener can backfill main commits a batched push skipped (V0-GAR-01), and each repo's merge-queue builder ends with gate's timing step (V0-GAT-04). Canary builders follow once release has an executor. Steps are interim commands in
+  or whose own workflows define a check with a generated builder's name (YAML is parsed, so quoting,
+  flow style or a `name:` on another job id don't escape it). While a PR leaves its `qq-*` files
+  alone, stubs `main` generated within `drift_grace_days` (pipelines.toml) pass with a warning, so a
+  generator change doesn't turn open product PRs red before redelivery; a PR that edits them must
+  match `main` exactly. PRs into other branches than the default pass. A PR cannot edit
+  it, because it lives here. Each stub
+  also carries a `# qq-digest:` line and a fast in-repo drift step. Post-submit builders also run on `workflow_dispatch` with a `commit` input, so the gardener can backfill main commits a batched push skipped (V0-GAR-01); such a run's check shows on the branch tip, so find it by its run name (`<builder> <commit>`), not by the tip's checks. Each repo's merge-queue builder ends with gate's timing step (V0-GAT-04). Canary builders follow once release has an executor. Steps are interim commands in
   `kinds.toml` until the recipes adapters exist (V0-REC-02, V0-REC-03); they pass locally against
   xo-space `c3cea98` (Python 3.14.8) and innernet `da9b84c` (pnpm install, typecheck, build). The
   xo-space stub checks less than its own `tests.yml`, which stays a required check until the repo's

@@ -1,10 +1,14 @@
 # Hand-written, like validate.yml. Meant to run as an organization-required workflow (an org
 # ruleset, "Require workflows to pass before merging", pointing at this file on main) in every repo
 # listed in config/repos.toml. A PR in a product repo cannot edit this file, so a hand-edited,
-# renamed or deleted qq-*.yml stub fails it (V0-CFG-02). Repos with nothing delivered pass.
+# renamed or deleted qq-*.yml stub fails it (V0-CFG-02). Repos with nothing delivered pass, and so
+# do PRs into other branches than the repo's default. While a PR leaves the qq-* files alone, stubs
+# main generated within pipelines.toml drift_grace_days still pass, with a warning to redeliver.
 name: qq-drift
 on:
   pull_request:
+    # edited: a PR retargeted from another branch to the default one is checked again.
+    types: [opened, synchronize, reopened, edited]
   merge_group:
 permissions:
   contents: read
@@ -19,12 +23,14 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: target
+          fetch-depth: 0        # the base commit too, to see whether the change edits qq-* files
           persist-credentials: false
       - uses: actions/checkout@v7
         with:
           repository: quirq-ai/infra-config
           ref: main
           path: infra-config
+          fetch-depth: 0        # --history reads stubs main generated within drift_grace_days
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
@@ -33,4 +39,10 @@ jobs:
       - name: compare delivered stubs with infra-config main
         env:
           REPO: ${{ github.event.repository.name }}
-        run: python infra-config/tools/qqcfg.py check-delivered "$REPO" target
+          # Stubs live on the default branch only; PRs into other branches (xo-space's development) pass.
+          BASE: ${{ github.base_ref || github.event.merge_group.base_ref }}
+          # merge_group: the group's base. pull_request: empty, so HEAD^1, the base side of the merge ref.
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: >-
+          python infra-config/tools/qqcfg.py check-delivered "$REPO" target
+          --base "$BASE" --base-sha "$BASE_SHA" --history

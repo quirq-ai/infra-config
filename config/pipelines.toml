@@ -21,6 +21,9 @@ chromium = "try and ci builders in infra/config/subprojects/chromium/*.star, gen
 [defaults]
 backend = "github"            # v0; Launchpad later (org.toml backends)
 timeout_minutes = 30
+# qq-drift accepts stubs that main generated up to this many days ago (with a warning to redeliver),
+# so a generator change does not turn every open product PR red at once (audit S3).
+drift_grace_days = 7
 # V0-GAT-04: the merge-queue (queue-triggered) builder of each repo ends with gate's timing step,
 # one sample per gate run. Pinned by commit. TODO(expert): let rollers move this pin.
 timing = "quirq-ai/gate/timing@ce01a4b15f3a7a99d9895c5607c0ce88af67ea5a"
@@ -30,7 +33,7 @@ timing = "quirq-ai/gate/timing@ce01a4b15f3a7a99d9895c5607c0ce88af67ea5a"
 # V0-TST-02). It reads each kind's test_reports (kinds.toml); a kind without them gets a one-case
 # report from its test step's outcome. Pinned by commit. TODO(expert): let rollers move this pin.
 [defaults.results]
-sink = "quirq-ai/test-pipelines/sink@03dfc5d926aea1183e41ca8fc22c3937468739f6"
+sink = "quirq-ai/test-pipelines/sink@1e3ddb19c7611527f5e231ab63d4cda8c0f68781"   # 1e3ddb1+ reads gate timing's QQ_QUEUED_AT
 
 # --- xo-space -------------------------------------------------------------------------------
 
