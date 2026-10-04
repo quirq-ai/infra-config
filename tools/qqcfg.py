@@ -501,8 +501,9 @@ def render(cfg: dict) -> dict[str, str]:
         if reports:
             # V0-TST-01: store this run's test results even when a test step failed. Post-submit names
             # the commit it tested, which on a backfill is not GITHUB_SHA (the branch tip there).
-            # A refused backfill tested nothing, so it stores nothing (store is write-once).
-            sink_if = "always() && steps.qq-backfill.outcome != 'failure'" if post else "always()"
+            # A refused or cancelled backfill check tested nothing, so it stores nothing (the store is write-once).
+            sink_if = ("always() && (steps.qq-backfill.outcome == 'success' || steps.qq-backfill.outcome == 'skipped')"
+                       if post else "always()")
             lines += ['      - name: "qq result sink"', f"        if: {sink_if}",
                       f"        uses: {defaults['results']['sink']}",
                       "        with:", "          junit: |", *(f"            {g}" for g in dict.fromkeys(reports)),
