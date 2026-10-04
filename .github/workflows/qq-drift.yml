@@ -41,7 +41,8 @@ jobs:
           REPO: ${{ github.event.repository.name }}
           # Stubs live on the default branch only; PRs into other branches (xo-space's development) pass.
           BASE: ${{ github.base_ref || github.event.merge_group.base_ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          # merge_group: the group's base. pull_request: empty, so HEAD^1, the base side of the merge ref.
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: >-
           python infra-config/tools/qqcfg.py check-delivered "$REPO" target
           --base "$BASE" --base-sha "$BASE_SHA" --history
