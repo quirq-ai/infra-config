@@ -62,6 +62,10 @@ jobs:
           if [ "$head" != "$WORKFLOW_SHA" ]; then
             echo "::error::checked out infra-config $head, not the pinned $WORKFLOW_SHA"; exit 1
           fi
+          # Without the branch, a tag literally named refs/remotes/origin/main would resolve instead.
+          if ! git -C infra-config show-ref --verify --quiet refs/remotes/origin/main; then
+            echo "::error::infra-config has no main branch to check $head against"; exit 1
+          fi
           if ! git -C infra-config merge-base --is-ancestor "$head" refs/remotes/origin/main; then
             echo "::error::infra-config $head is not on quirq-ai/infra-config main"; exit 1
           fi

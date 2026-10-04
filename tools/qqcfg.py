@@ -9,7 +9,7 @@
     python3 tools/qqcfg.py deliver REPO DIR     copy REPO's generated workflows into the checkout at DIR.
     python3 tools/qqcfg.py check-delivered REPO DIR   fail if DIR's workflows drift from what REPO gets.
 
-Config is TOML: parsed, never executed. Needs Python 3.11+ (tomllib) and jsonschema (requirements.txt).
+Config is TOML: parsed, never executed. Needs Python 3.11+ (tomllib) and jsonschema (requirements.in, locked with hashes in requirements.txt).
 """
 from __future__ import annotations
 

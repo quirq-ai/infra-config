@@ -53,7 +53,7 @@ originals, and changing them needs his approval.
 ## Quick start
 
 ```sh
-python3 -m pip install -r requirements.txt     # jsonschema; Python 3.11+ for tomllib
+python3 -m pip install -r requirements.txt     # hashed lock of requirements.in (jsonschema, PyYAML); Python 3.11+
 python3 tools/qqcfg.py validate                # the CI check; exit 1 on any error
 python3 tools/qqcfg.py validate --todos        # also list every open decision
 python3 tools/qqcfg.py generate                # rewrite generated/ after editing config/

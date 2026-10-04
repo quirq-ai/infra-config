@@ -733,6 +733,10 @@ class DriftWorkflow(unittest.TestCase):
         self.assertEqual(check(on_main, older).returncode, 1)  # not what was asked for, though on main
         self.assertEqual(check(off_main, off_main).returncode, 1)  # not on main
         self.assertEqual(check(on_main, "").returncode, 1)
+        # With no main branch, a tag named like the remote ref must not stand in for it.
+        git("update-ref", "-d", "refs/remotes/origin/main")
+        git("tag", "refs/remotes/origin/main", on_main)
+        self.assertEqual(check(on_main, on_main).returncode, 1)
 
     def test_guards_run_first_and_cannot_be_skipped(self):
         names = [st.get("name", st.get("uses", st.get("run", ""))) for st in self.steps]
@@ -764,6 +768,20 @@ class DriftWorkflow(unittest.TestCase):
                  if l.strip() and not l.lstrip().startswith("#")]
         self.assertEqual(lines[0], "pyyaml==6.0.3 \\")
         self.assertTrue(all(re.fullmatch(r"--hash=sha256:[0-9a-f]{64}( \\)?", l) for l in lines[1:]), lines)
+
+    def test_validate_installs_only_a_hashed_lock(self):
+        # Audit follow-up: infra-config's own CI installs nothing unpinned either.
+        doc = __import__("yaml").safe_load((ROOT / ".github/workflows/validate.yml").read_text())
+        installs = [st["run"] for st in doc["jobs"]["validate"]["steps"] if "pip" in str(st.get("run", ""))]
+        self.assertEqual(len(installs), 1, installs)
+        for flag in ("--require-hashes", "--no-deps", "--only-binary :all:", "-r requirements.txt"):
+            self.assertIn(flag, installs[0])
+        reqs = re.split(r"\n(?=\S)", "\n".join(l for l in (ROOT / "requirements.txt").read_text().splitlines()
+                                              if l.strip() and not l.startswith("#")))
+        self.assertTrue(reqs)
+        for req in reqs:
+            self.assertRegex(req, r"^\S+==\S+", req)
+            self.assertIn("--hash=sha256:", req)
 
     def test_check_delivered_needs_nothing_but_pyyaml(self):
         dest = Path(tempfile.mkdtemp())
