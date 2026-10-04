@@ -762,8 +762,13 @@ class DriftWorkflow(unittest.TestCase):
         # Audit R2: nothing unpinned or unhashed runs inside the required check.
         installs = [st["run"] for st in self.steps if "pip" in str(st.get("run", ""))]
         self.assertEqual(len(installs), 1, installs)
-        for flag in ("--require-hashes", "--no-deps", "--only-binary :all:", "-r infra-config/requirements-drift.txt"):
-            self.assertIn(flag, installs[0])
+        # Whole arguments, so "-r infra-config/requirements-drift.txt.bak" or a second -r does not pass.
+        args = installs[0].split()
+        self.assertEqual(args[:4], ["python", "-m", "pip", "install"], args)
+        self.assertEqual(sorted(args[4:]), sorted(["--quiet", "--require-hashes", "--no-deps",
+                                                   "--only-binary", ":all:", "-r", "infra-config/requirements-drift.txt"]), args)
+        self.assertEqual(args[args.index("--only-binary") + 1], ":all:")
+        self.assertEqual(args[args.index("-r") + 1], "infra-config/requirements-drift.txt")
         lines = [l.strip() for l in (ROOT / "requirements-drift.txt").read_text().splitlines()
                  if l.strip() and not l.lstrip().startswith("#")]
         self.assertEqual(lines[0], "pyyaml==6.0.3 \\")
@@ -774,8 +779,13 @@ class DriftWorkflow(unittest.TestCase):
         doc = __import__("yaml").safe_load((ROOT / ".github/workflows/validate.yml").read_text())
         installs = [st["run"] for st in doc["jobs"]["validate"]["steps"] if "pip" in str(st.get("run", ""))]
         self.assertEqual(len(installs), 1, installs)
-        for flag in ("--require-hashes", "--no-deps", "--only-binary :all:", "-r requirements.txt"):
-            self.assertIn(flag, installs[0])
+        # Whole arguments, so "-r requirements.txt.bak" or a second -r does not pass.
+        args = installs[0].split()
+        self.assertEqual(args[:4], ["python", "-m", "pip", "install"], args)
+        self.assertEqual(sorted(args[4:]), sorted(["--quiet", "--require-hashes", "--no-deps",
+                                                   "--only-binary", ":all:", "-r", "requirements.txt"]), args)
+        self.assertEqual(args[args.index("--only-binary") + 1], ":all:")
+        self.assertEqual(args[args.index("-r") + 1], "requirements.txt")
         reqs = re.split(r"\n(?=\S)", "\n".join(l for l in (ROOT / "requirements.txt").read_text().splitlines()
                                               if l.strip() and not l.startswith("#")))
         self.assertTrue(reqs)
