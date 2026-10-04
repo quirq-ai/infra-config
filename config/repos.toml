@@ -20,6 +20,7 @@ kinds = ["python-service", "pytest"]
 manifest = "infra/repo.toml"   # not created yet (P1)
 channels = ["canary", "dev", "stable"]
 owners = []              # suraj fills in
+other_qq_workflows = ["qq-roll-land.yml"]   # delivered by quirq-ai/rollers (V0-ROL-02), not qqcfg
 [repo.deploy]
 target = "installer-channel"   # install.sh and the in-app updater follow a channel ref (P5); today they follow main
 # xo-space runs Python 3.12 today (Dockerfile, tests.yml); moving to the org pin is P1 work.
@@ -35,5 +36,6 @@ kinds = ["node-app"]
 manifest = "infra/repo.toml"   # not created yet (P1)
 channels = ["canary", "dev", "stable"]
 owners = []              # suraj fills in
+other_qq_workflows = ["qq-roll-land.yml"]   # delivered by quirq-ai/rollers (V0-ROL-02), not qqcfg
 [repo.deploy]
 target = "vercel"        # TODO(expert): verify Vercel (only a .vercelignore hints).

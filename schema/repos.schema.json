@@ -38,6 +38,12 @@
           "manifest": {"type": "string", "minLength": 1},
           "channels": {"$ref": "area.schema.json#/$defs/names"},
           "owners": {"$ref": "area.schema.json#/$defs/people"},
+          "other_qq_workflows": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^qq-[a-z0-9-]+\\.yml$"},
+            "description": "qq-*.yml workflows another quirq tool delivers into this repo (for example rollers' qq-roll-land.yml). qqcfg deliver leaves them alone and qq-drift does not count them as stale stubs; they still may not define a generated builder's check."
+          },
           "deploy": {
             "type": "object",
             "additionalProperties": false,

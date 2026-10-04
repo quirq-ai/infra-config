@@ -131,6 +131,11 @@ class BadChangesFail(unittest.TestCase):
                   "blocking = false\ntimeout_minutes = 41\ngenerate = true\n\n[[builder]]\nname = \"innernet-postsubmit\"")
         self.assertFails("org-required copy may not run longer than gate admission max_minutes (40)")
 
+    def test_other_qq_workflow_may_not_shadow_a_stub(self):
+        self.edit("config/repos.toml", 'other_qq_workflows = ["qq-roll-land.yml"]',
+                  'other_qq_workflows = ["qq-roll-land.yml", "qq-xo-space-presubmit.yml"]')
+        self.assertFails("is a generated builder's stub")
+
     def test_hand_edited_generated_file_rejected(self):
         self.edit("generated/github/xo-space/qq-xo-space-presubmit.yml", "timeout-minutes: 20", "timeout-minutes: 90")
         self.assertFails("out of date")
@@ -271,6 +276,30 @@ class Delivery(unittest.TestCase):
         result = self.drift_check()
         self.assertEqual(result.returncode, 1)
         self.assertIn("was edited by hand", result.stdout)
+
+    def test_other_tools_qq_workflows_are_left_alone(self):
+        # rollers delivers qq-roll-land.yml (V0-ROL-02); deliver must not delete it, nor qq-drift flag it.
+        roll = self.dest / ".github/workflows/qq-roll-land.yml"
+        roll.parent.mkdir(parents=True)
+        roll.write_text("name: qq roll land\non: pull_request\njobs:\n  land:\n    runs-on: ubuntu-24.04\n    steps: []\n")
+        self.assertNotIn("removed .github/workflows/qq-roll-land.yml", qqcfg.deliver(self.cfg, "xo-space", self.dest))
+        self.assertTrue(roll.exists())
+        self.assertEqual(qqcfg.check_delivered(self.cfg, "xo-space", self.dest), [])
+        # It still may not take a generated builder's check name.
+        roll.write_text(roll.read_text().replace("  land:\n", "  xo-space-presubmit:\n"))
+        self.assertTrue(any("only its generated stub may define" in e
+                            for e in qqcfg.check_delivered(self.cfg, "xo-space", self.dest)))
+
+    def test_unlisted_qq_workflow_still_fails_drift(self):
+        other = self.dest / ".github/workflows/qq-something-else.yml"
+        other.parent.mkdir(parents=True)
+        other.write_text("name: x\non: push\njobs: {}\n")
+        qqcfg.deliver(self.cfg, "xo-space", self.dest)
+        self.assertFalse(other.exists())  # deliver drops unlisted qq-* files as stale stubs
+        qqcfg.deliver(self.cfg, "xo-space", self.dest)
+        other.write_text("name: x\non: push\njobs: {}\n")
+        self.assertTrue(any("qq-something-else.yml: not generated" in e
+                            for e in qqcfg.check_delivered(self.cfg, "xo-space", self.dest)))
 
     def test_deliver_removes_stale_stubs_and_is_idempotent(self):
         stale = self.dest / ".github/workflows/qq-old-builder.yml"
