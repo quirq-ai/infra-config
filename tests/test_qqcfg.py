@@ -372,7 +372,7 @@ class Delivery(unittest.TestCase):
             job = doc["jobs"][f"{b['name']}-pinned"]
             self.assertEqual(job["if"], f"github.repository == 'quirq-ai/{b['repo']}'")
             self.assertEqual(doc[True], stub[True])
-            self.assertNotEqual(doc["concurrency"]["group"], stub["concurrency"]["group"])
+            self.assertNotIn("concurrency", doc)  # a ruleset workflow must not be cancelled in progress
             self.assertEqual(doc["permissions"], {"contents": "read"})
             # Same commands; timing and result storage stay with the stub so nothing is stored twice.
             runs = [st.get("run") for st in job["steps"]]

@@ -468,11 +468,10 @@ def render(cfg: dict, required: bool = False) -> dict[str, str]:
             # A concurrency group keeps only one pending run even without cancelling (a second
             # dispatch of a commit would drop its pending push run), so post-submit, which must give
             # every main commit a verdict, gets no group at all.
-            # The required copy runs in the product repo too, so it gets its own group or the two
-            # workflows could cancel each other.
-            *(["concurrency:", f"  group: {q(('qq-required-' if required else 'qq-') + b['name'] + '-${{ github.ref }}')}",
-               "  cancel-in-progress: true"]
-              if b.get("cancel_in_progress", not post) else []),
+            # The required copy gets no group: GitHub says a ruleset workflow must not be cancelled
+            # in progress, as a cancelled required run blocks the PR or queue entry until re-run.
+            *(["concurrency:", f"  group: {q('qq-' + b['name'] + '-${{ github.ref }}')}", "  cancel-in-progress: true"]
+              if b.get("cancel_in_progress", not post) and not required else []),
             "jobs:",
             f"  {job}:",
             *([f"    if: github.repository == {sq(owner + '/' + b['repo'])}"] if required else []),
