@@ -110,7 +110,6 @@ class BadChangesFail(unittest.TestCase):
                   'pipeline = "postsubmit"\ntriggers = ["land", "change"]')
         self.assertFails("runs PR code")
 
-
     def test_all_thirteen_infra_repos_listed(self):
         self.edit("config/org.toml", '[[infra_repo]]\nname = "perf"', '[[infra_repo]]\nname = "perf-typo"')
         self.assertFails("infra repo 'perf' is missing")
@@ -122,6 +121,11 @@ class BadChangesFail(unittest.TestCase):
     def test_infra_repo_source_matches_name(self):
         self.edit("config/org.toml", 'source = "github.com/quirq-ai/sync"', 'source = "github.com/quirq-ai/gclient"')
         self.assertFails("infra repo 'sync' source must be")
+
+    def test_infra_repo_is_not_a_product_repo(self):
+        self.edit("config/repos.toml", 'name = "innernet"', 'name = "perf"')
+        self.edit("config/pipelines.toml", 'repo = "innernet"', 'repo = "perf"')
+        self.assertFails("'perf' is both an infra repo and a product repo")
 
 
 if __name__ == "__main__":

@@ -61,7 +61,8 @@ mechanism = "token"           # read-only; health signals observe, they never ac
 monthly_ci_usd = 0            # TODO(suraj): set the monthly CI compute ceiling (plan §10 #9). 0 means not set.
 
 # The thirteen quirq infra repos (plan §5.5), one job each. Settled: all public (D2), all built as v0
-# base versions (D3). suraj created them on 2026-10-04. `wave` is the v0 start order (v0 launch kit).
+# base versions (D3). suraj created them on 2026-10-04 (V0-ORG-01). `wave` is the v0 start order, 1 to 4,
+# from the v0 dependency order in docs/v0.md as the launch plan (2026-10-03) grouped it.
 # tools/qqcfg.py checks this list is exactly the plan's thirteen. Product repos are in repos.toml.
 [[infra_repo]]
 name = "depot"
@@ -86,7 +87,7 @@ name = "recipes"
 source = "github.com/quirq-ai/recipes"
 visibility = "public"
 wave = 2
-owns = "Adapters per kind: python-service, pytest, node-app, static-docs, later container-image."
+owns = "Adapters per kind: python-service, pytest, node-app, container-image, static-docs, then go and rust."
 chromium = "chromium/tools/build recipes and recipes-py"
 owners = []            # suraj fills in
 
@@ -104,7 +105,7 @@ name = "test-pipelines"
 source = "github.com/quirq-ai/test-pipelines"
 visibility = "public"
 wave = 3
-owns = "Result schema and sinks, results store, flakes, quarantine, retry and exoneration."
+owns = "Result schema and sinks, results store, flakes, quarantine, retry and exoneration, autosharding."
 chromium = "ResultDB, ResultSink and LUCI Analysis"
 owners = []            # suraj fills in
 
@@ -113,7 +114,7 @@ name = "gate"
 source = "github.com/quirq-ai/gate"
 visibility = "public"
 wave = 3
-owns = "Required checks from config, merge-queue integration, quotas, tree status."
+owns = "Required checks from config, merge-queue integration, reuse keys, quotas, tree status."
 chromium = "LUCI CV and commit-queue.cfg"
 owners = []            # suraj fills in
 
@@ -158,8 +159,8 @@ name = "release"
 source = "github.com/quirq-ai/release"
 visibility = "public"
 wave = 4
-owns = "Versioning, lkgr, channels, promotion, notes, deploy operations, rollback."
-chromium = "V8 release scripts and lkgr finder; LUCI promote.py"
+owns = "Versioning, lkgr, branch cuts, channels, promotion, notes, deploy operations, rollback."
+chromium = "V8 release scripts and lkgr finder, chrome-official-brancher; LUCI promote.py"
 owners = []            # suraj fills in
 
 [[infra_repo]]
