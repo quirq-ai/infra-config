@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/quirq-ai/infra-config/schema/health.schema.json",
-  "title": "health: signals that gate promotion and rollback (stub)",
+  "title": "health: canary probes and signals that gate promotion and rollback",
   "type": "object",
   "additionalProperties": false,
-  "required": ["area", "posthog", "signal"],
+  "required": ["area", "posthog", "canary", "probe", "signal"],
   "properties": {
     "area": {"$ref": "area.schema.json"},
     "posthog": {
@@ -13,15 +13,42 @@
       "required": ["host", "secret_scope"],
       "properties": {"host": {"type": "string"}, "secret_scope": {"$ref": "area.schema.json#/$defs/name"}}
     },
+    "canary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["missing_data", "on_probe_failure"],
+      "properties": {
+        "missing_data": {"const": "hold"},
+        "on_probe_failure": {"enum": ["hold", "rollback"]}
+      }
+    },
+    "probe": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "repo", "path", "expect_status", "timeout_seconds", "attempts"],
+        "properties": {
+          "name": {"$ref": "area.schema.json#/$defs/name"},
+          "repo": {"$ref": "area.schema.json#/$defs/name"},
+          "path": {"type": "string", "pattern": "^/"},
+          "expect_status": {"type": "integer", "minimum": 100, "maximum": 599},
+          "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 300},
+          "attempts": {"type": "integer", "minimum": 1, "maximum": 10}
+        }
+      }
+    },
     "signal": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "source", "measure", "compare", "window_hours", "repos"],
+        "required": ["name", "phase", "source", "measure", "compare", "window_hours", "repos"],
         "properties": {
           "name": {"$ref": "area.schema.json#/$defs/name"},
+          "phase": {"enum": ["v0", "v1"]},
           "source": {"enum": ["posthog", "ci"]},
           "measure": {"type": "string", "minLength": 1},
           "compare": {"enum": ["previous-release", "last-week", "absolute"]},

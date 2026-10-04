@@ -89,7 +89,7 @@ def check_schema(root: Path, cfg: dict, err) -> None:
             err(f"config/{area}.toml: [area] name must be {area!r}")
 
 
-def check_refs(cfg: dict, err) -> None:
+def check_refs(root: Path, cfg: dict, err) -> None:
     backends = by_name(cfg["org"]["backend"])
     toolchains = by_name(cfg["kinds"]["toolchain"])
     kinds = by_name(cfg["kinds"]["kind"])
@@ -107,7 +107,8 @@ def check_refs(cfg: dict, err) -> None:
                          ("org pools", cfg["org"]["pool"]), ("pipelines builders", builders),
                          ("channels", chans), ("health signals", cfg["health"]["signal"]),
                          ("fuzz schedules", cfg["fuzz"]["schedule"]), ("rollers", cfg["rollers"]["roller"]),
-                         ("perf benchmarks", cfg["perf"]["benchmark"])]:
+                         ("perf benchmarks", cfg["perf"]["benchmark"]),
+                         ("health probes", cfg["health"]["probe"])]:
         names = [i["name"] for i in items]
         for dup in sorted({n for n in names if names.count(n) > 1}):
             err(f"{label}: duplicate name {dup!r}")
@@ -193,6 +194,33 @@ def check_refs(cfg: dict, err) -> None:
             for r in item[key] if isinstance(item[key], list) else [item[key]]:
                 if r not in repos:
                     err(f"{label} {item['name']!r}: unknown repo {r!r}")
+    for p in cfg["health"]["probe"]:
+        if p["repo"] not in repos:
+            err(f"health probe {p['name']!r}: unknown repo {p['repo']!r}")
+    for r in repos.values():
+        if chan_names[0] in r["channels"] and not any(p["repo"] == r["name"] for p in cfg["health"]["probe"]):
+            err(f"health: repo {r['name']!r} ships on {chan_names[0]!r} but has no probe (a missing signal holds it)")
+    for s in cfg["health"]["signal"]:
+        if s["phase"] == "v0" and s["source"] != "ci":
+            err(f"health signal {s['name']!r}: v0 uses CI signals only; {s['source']!r} signals are phase v1")
+    pt = cfg["fuzz"]["property_tests"]
+    for tc in (k for k, v in pt.items() if isinstance(v, str)):
+        if tc not in toolchains:
+            err(f"fuzz: property_tests library for unknown toolchain {tc!r}")
+    tested = {kinds[k]["toolchain"] for r in repos.values() for k in r["kinds"]
+              if k in kinds and "test" in kinds[k]["capabilities"] and "toolchain" in kinds[k]}
+    for tc in sorted(tested - set(pt)):
+        err(f"fuzz: property_tests names no library for toolchain {tc!r}, which a repo tests with")
+    if pt["gate_minutes"] > pt["canary_minutes"]:
+        err("fuzz: property_tests gate_minutes may not exceed canary_minutes")
+    if cfg["fuzz"]["canary_smoke"]["duration_minutes"] < pt["canary_minutes"]:
+        err("fuzz: canary_smoke duration_minutes must cover property_tests canary_minutes")
+    template = cfg["postmortem"]["policy"]["template"]
+    if not (root / template).is_file():
+        err(f"postmortem: template {template!r} does not exist in this repo")
+    trig = [e["event"] for e in cfg["postmortem"]["trigger"]]
+    for dup in sorted({e for e in trig if trig.count(e) > 1}):
+        err(f"postmortem: duplicate trigger event {dup!r}")
     for s in cfg["fuzz"]["schedule"]:
         if s["pool"] not in pools:
             err(f"fuzz schedule {s['name']!r}: unknown pool {s['pool']!r}")
@@ -461,10 +489,10 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
     if len(errors) > n:
         return errors, report  # cross-reference checks assume a schema-valid config
     report.append(f"ok    schema     {len(cfg)} areas against schema/")
-    check_refs(cfg, errors.append)
+    check_refs(root, cfg, errors.append)
     refs_ok = len(errors) == n
     if refs_ok:
-        report.append("ok    refs       repos, kinds, pools, builders, channels, signals, triggers")
+        report.append("ok    refs       repos, kinds, pools, builders, channels, signals, probes, triggers")
     n = len(errors)
     checks = check_policy(cfg, errors.append)
     if len(errors) == n:

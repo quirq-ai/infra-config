@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/quirq-ai/infra-config/schema/flakes.schema.json",
-  "title": "flakes: verdicts, retries and quarantine (stub)",
+  "title": "flakes: verdicts, retries and quarantine",
   "type": "object",
   "additionalProperties": false,
   "required": ["area", "verdict", "quarantine", "detection"],
@@ -10,9 +10,10 @@
     "verdict": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["retry_failed", "compare_with_base", "exonerate_known_flakes"],
+      "required": ["retry_failed", "max_failures_to_retry", "compare_with_base", "exonerate_known_flakes"],
       "properties": {
         "retry_failed": {"type": "integer", "minimum": 0, "maximum": 5},
+        "max_failures_to_retry": {"type": "integer", "minimum": 1},
         "compare_with_base": {"type": "boolean"},
         "exonerate_known_flakes": {"type": "boolean"}
       }
