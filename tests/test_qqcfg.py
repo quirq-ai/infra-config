@@ -376,6 +376,15 @@ class Delivery(unittest.TestCase):
         (wf / "qq-innernet-presubmit.yml").unlink()
         git("add", "-A"); git("commit", "-qm", "drop a stub")
         self.assertTrue(qqcfg.pr_changes_stubs(repo))
+        git("reset", "-q", "--hard", "HEAD~1")
+        (wf / "qq-innernet-presubmit.yml").rename(wf / "other.yml")  # a rename still counts
+        git("add", "-A"); git("commit", "-qm", "rename a stub")
+        self.assertTrue(qqcfg.pr_changes_stubs(repo))
+        base = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD~2"], capture_output=True, text=True).stdout.strip()
+        (wf / "README").write_text("x")
+        git("add", "-A"); git("commit", "-qm", "later commit")  # HEAD^1 alone would miss the rename
+        self.assertFalse(qqcfg.pr_changes_stubs(repo))
+        self.assertTrue(qqcfg.pr_changes_stubs(repo, base))
 
     def test_generations_reads_stubs_that_were_current_in_the_window(self):
         repo = Path(tempfile.mkdtemp())

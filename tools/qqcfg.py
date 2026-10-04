@@ -484,14 +484,17 @@ def generations(root: Path, repo: str, days: int) -> list[dict[str, str]]:
     return out
 
 
-def pr_changes_stubs(dest: Path) -> bool:
-    """Whether the checked-out PR (or merge-queue) commit changes any qq-* workflow against its base.
+def pr_changes_stubs(dest: Path, base: str = "") -> bool:
+    """Whether the checked-out change touches any qq-* workflow compared with base.
 
-    The checkout is the merge commit, so its first parent is the base. If that can't be read, assume
-    it does: the grace window is then off, which fails closed.
+    base is the commit the change is tested against (the PR's or merge group's base SHA); without
+    it, HEAD^1, the base side of a PR merge commit. Renames are listed as a delete and an add, so
+    renaming a stub counts. If the diff can't be read, assume it does: the grace window is then
+    off, which fails closed.
     """
     try:
-        changed = _git(dest, "diff", "-z", "--name-only", "HEAD^1", "HEAD", "--", WORKFLOWS).split("\0")
+        changed = _git(dest, "diff", "-z", "--no-renames", "--name-only", base or "HEAD^1", "HEAD",
+                       "--", WORKFLOWS).split("\0")
     except ConfigError:
         return True
     return any(Path(n).name.lower().startswith("qq-") for n in changed if n)
@@ -695,6 +698,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", type=Path, default=ROOT, help="repo root (default: this checkout)")
     ap.add_argument("--todos", action="store_true", help="validate: also list open TODOs")
     ap.add_argument("--base", help="check-delivered: the PR's base branch; other branches than the default pass")
+    ap.add_argument("--base-sha", help="check-delivered: the commit DIR's change is tested against (default HEAD^1)")
     ap.add_argument("--history", action="store_true",
                     help="check-delivered: when DIR's commit leaves qq-* files alone, also accept stubs main "
                          "generated within drift_grace_days (needs git history in both checkouts)")
@@ -724,7 +728,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         older = []
         if args.history:
-            if pr_changes_stubs(Path(args.detail)):
+            if pr_changes_stubs(Path(args.detail), args.base_sha or ""):
                 print("::notice::this change edits qq-* workflows, so only main's current stubs are accepted")
             else:
                 try:
