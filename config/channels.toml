@@ -23,8 +23,8 @@ audience = ["agents"]
 from = "lkgr"
 cadence = "daily"
 schedule = "17 6 * * *"  # cron, UTC, off the hour: GitHub may delay or drop top-of-hour runs. TODO(suraj, v0): pick the canary hour.
-# release's canary workflow (V0-REL-03, not built yet) is planned to repeat this cron, with a test that
-# the two match, so changing the hour will need a one-line change in release too.
+# release's canary workflow (quirq-ai/release .github/workflows/canary.yml, V0-REL-03) repeats this cron,
+# and its tests/test_canary.py checks the two match, so changing the hour needs a one-line change in release too.
 unattended = true        # nobody watches it; failures go to the gardener and postmortem.toml
 [channel.promotion]
 approval = "none"        # automatic once lkgr moves
