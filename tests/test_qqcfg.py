@@ -36,6 +36,10 @@ class BadChangesFail(unittest.TestCase):
         errors, _ = qqcfg.validate(self.tmp)
         self.assertTrue(any(needle in e for e in errors), f"expected {needle!r} in {errors}")
 
+    def test_result_sink_must_be_pinned_by_commit(self):
+        self.edit("config/pipelines.toml", "sink@03dfc5d926aea1183e41ca8fc22c3937468739f6", "sink@main")
+        self.assertFails("does not match")
+
     def test_agent_cannot_promote_to_stable(self):
         self.edit("config/channels.toml", 'approval = "policy-owner"   # suraj', 'approval = "none"')
         self.assertFails("promotion to stable needs the policy-owner")
@@ -206,6 +210,21 @@ class Delivery(unittest.TestCase):
             steps = next(iter(doc["jobs"].values()))["steps"]
             drift = [s["run"] for s in steps if "drift" in s.get("name", "")]
             self.assertEqual(drift, [qqcfg.DRIFT_CHECK + "\n"], path)
+
+    def test_test_builders_end_with_the_result_sink(self):
+        # V0-TST-01: results are stored even when a test step fails, so the sink runs if: always().
+        import yaml
+        sink = self.cfg["pipelines"]["defaults"]["results"]["sink"]
+        for b in self.cfg["pipelines"]["builder"]:
+            if not b.get("generate"):
+                continue
+            doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{b['repo']}/qq-{b['name']}.yml"])
+            last = next(iter(doc["jobs"].values()))["steps"][-1]
+            if "test" in b["capabilities"]:
+                self.assertEqual((last.get("uses"), last.get("if")), (sink, "always()"), b["name"])
+                self.assertEqual(last["with"]["junit"].split(), ["results/**/*.xml"])
+            else:
+                self.assertNotEqual(last.get("uses"), sink, b["name"])
 
     def test_postsubmit_has_no_concurrency_group(self):
         # A group keeps one pending run, so bursty landings would drop post-submit verdicts.
