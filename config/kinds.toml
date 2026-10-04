@@ -19,7 +19,7 @@ name = "python"
 track = "latest"         # settled: the latest Python
 pin = "3.14"             # latest stable (3.14.8) on 2026-10-03; 3.15.0 is at rc3, final due 2026-10-09 (PEP 790)
 [toolchain.github]
-uses = "actions/setup-python@v7"
+uses = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"  # v7.0.0
 version_input = "python-version"
 
 [[toolchain]]
@@ -27,7 +27,7 @@ name = "node"
 track = "lts"            # for the latest Next.js (16.3.8 on npm, 2026-10-03)
 pin = "24"               # current Node LTS on nodejs.org, 2026-10-03
 [toolchain.github]
-uses = "actions/setup-node@v7"
+uses = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"    # v7.0.0
 version_input = "node-version"
 # TODO(expert): hermetic pins by digest (plan P3) once containers are in scope.
 

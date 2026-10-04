@@ -86,6 +86,10 @@ class BadChangesFail(unittest.TestCase):
         errors, _ = qqcfg.validate(self.tmp)
         self.assertEqual(errors, [])
 
+    def test_toolchain_action_must_be_pinned_by_commit(self):
+        self.edit("config/kinds.toml", "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020", "actions/setup-node@v7")
+        self.assertFails("does not match")
+
     def test_unknown_kind_rejected(self):
         self.edit("config/repos.toml", 'kinds = ["node-app"]', 'kinds = ["rust-app"]')
         self.assertFails("unknown kind 'rust-app'")
@@ -264,7 +268,8 @@ class Delivery(unittest.TestCase):
             self.assertEqual(drift, [qqcfg.DRIFT_CHECK + "\n"], path)
 
     def test_test_builders_end_with_the_result_sink(self):
-        # V0-TST-01: results are stored even when a test step fails, so the sink runs if: always().
+        # V0-TST-01: results are stored even when a test step fails, so the sink runs if: always()
+        # (post-submit: unless a backfill was refused before testing anything).
         import yaml
         sink = self.cfg["pipelines"]["defaults"]["results"]["sink"]
         for b in self.cfg["pipelines"]["builder"]:
@@ -273,7 +278,9 @@ class Delivery(unittest.TestCase):
             doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{b['repo']}/qq-{b['name']}.yml"])
             last = next(iter(doc["jobs"].values()))["steps"][-1]
             if "test" in b["capabilities"]:
-                self.assertEqual((last.get("uses"), last.get("if")), (sink, "always()"), b["name"])
+                want_if = ("always() && (steps.qq-backfill.outcome == 'success' || steps.qq-backfill.outcome == 'skipped')"
+                           if b["pipeline"] == "postsubmit" else "always()")
+                self.assertEqual((last.get("uses"), last.get("if")), (sink, want_if), b["name"])
                 kinds = qqcfg.by_name(self.cfg["kinds"]["kind"])
                 want = [g for k in b["kinds"] if "test" in kinds[k].get("interim", {})
                         for g in kinds[k].get("test_reports", [f"results/qq/{k}.xml"])]
@@ -313,19 +320,35 @@ class Delivery(unittest.TestCase):
             self.assertTrue(on["workflow_dispatch"]["inputs"]["commit"]["required"])
             self.assertEqual(doc["run-name"], f"{repo}-postsubmit ${{{{ inputs.commit || github.sha }}}}")
             steps = doc["jobs"][f"{repo}-postsubmit"]["steps"]
-            self.assertEqual(steps[0]["name"], "qq backfill commit check")
+            self.assertEqual((steps[0]["name"], steps[0]["id"]), ("qq backfill commit check", "qq-backfill"))
             self.assertEqual(steps[1]["with"]["ref"], "${{ inputs.commit || github.sha }}")
             sink = next(st for st in steps if st.get("name") == "qq result sink")
+            # A refused backfill tested nothing, so it must not write to the write-once store (audit S1).
             self.assertEqual((sink["if"], sink["with"]["commit"], sink["with"]["kind"]),
-                             ("always()", "${{ inputs.commit || github.sha }}", "postsubmit"))
+                             ("always() && (steps.qq-backfill.outcome == 'success' || steps.qq-backfill.outcome == 'skipped')",
+                              "${{ inputs.commit || github.sha }}", "postsubmit"))
+
+    def test_backfill_check_rejects_a_dispatch_from_another_ref(self):
+        script = qqcfg.BACKFILL_CHECK.format(branch="main")
+        for ref in ("refs/heads/feature", "refs/heads/main-x", ""):
+            r = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                               env={"COMMIT": "a" * 40, "GITHUB_REF": ref, "PATH": "/usr/bin:/bin"})
+            self.assertEqual(r.returncode, 1, ref)
+            self.assertIn("dispatch backfills from main", r.stdout, ref)
 
     def test_backfill_check_rejects_a_short_or_odd_commit(self):
         script = qqcfg.BACKFILL_CHECK.format(branch="main")
         for bad in ("abc123", "main", "$(id)", "A" * 40):
-            r = subprocess.run(["bash", "-c", script], env={"COMMIT": bad, "PATH": "/usr/bin:/bin"},
-                               capture_output=True, text=True)
+            r = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                               env={"COMMIT": bad, "GITHUB_REF": "refs/heads/main", "PATH": "/usr/bin:/bin"})
             self.assertEqual(r.returncode, 1, bad)
             self.assertIn("full 40-character SHA", r.stdout, bad)
+
+    def test_generated_actions_are_pinned_by_commit(self):
+        import re
+        for path, text in qqcfg.render(self.cfg).items():
+            for ref in re.findall(r"uses: (\S+)", text):
+                self.assertRegex(ref, r"@[0-9a-f]{40}$", path)
 
     def test_only_queue_builders_get_the_gate_timing_step(self):
         import yaml
@@ -337,7 +360,8 @@ class Delivery(unittest.TestCase):
             steps = next(iter(doc["jobs"].values()))["steps"]
             got = [st for st in steps if st.get("uses") == timing]
             if "queue" in b["triggers"]:
-                self.assertEqual([st["if"] for st in got], ["always() && github.event_name == 'merge_group'"], b["name"])
+                self.assertEqual([(st["if"], st["timeout-minutes"], st["continue-on-error"]) for st in got],
+                                 [("always() && github.event_name == 'merge_group'", 3, True)], b["name"])
                 self.assertEqual(doc["permissions"], {"contents": "read", "pull-requests": "read"})
             else:
                 self.assertEqual(got, [], b["name"])

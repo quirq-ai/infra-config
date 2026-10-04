@@ -335,7 +335,7 @@ def check_policy(cfg: dict, err) -> int:
 # --- generation (one backend: github; one example: builders with generate = true) -------------
 # Everything GitHub-specific in this repo's tooling lives in this section.
 
-CHECKOUT = "actions/checkout@v7"  # TODO(expert): pin actions by commit SHA (plan P5).
+CHECKOUT = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"  # v7.0.1, pinned by commit (plan P5)
 GITHUB_EVENTS = {"change": "pull_request", "queue": "merge_group", "land": "push"}
 GENERATABLE = {"presubmit", "postsubmit"}  # release builders wait for the release executor (V0-REL-03)
 WORKFLOWS = ".github/workflows"            # where deliver puts them in a product repo
@@ -371,8 +371,12 @@ printf '<?xml version="1.0" encoding="UTF-8"?>\\n<testsuite name="qq" tests="1">
 """
 
 
-# Fails a dispatched post-submit unless COMMIT is a full SHA on the default branch ({branch}).
-BACKFILL_CHECK = """if ! [[ "$COMMIT" =~ ^[0-9a-f]{{40}}$ ]]; then
+# Fails a dispatched post-submit unless it was dispatched from the default branch ({branch}), so it runs
+# that branch's copy of this workflow, and COMMIT is a full SHA on it. The sink skips a refused run.
+BACKFILL_CHECK = """if [ "$GITHUB_REF" != "refs/heads/{branch}" ]; then
+  echo "::error::dispatch backfills from {branch}, not $GITHUB_REF"; exit 1
+fi
+if ! [[ "$COMMIT" =~ ^[0-9a-f]{{40}}$ ]]; then
   echo "::error::commit must be a full 40-character SHA"; exit 1
 fi
 status=$(gh api "repos/$GITHUB_REPOSITORY/compare/{branch}...$COMMIT" --jq .status)
@@ -453,7 +457,8 @@ def render(cfg: dict) -> dict[str, str]:
             f"    runs-on: {q(by_name(cfg['org']['pool'])[b['pool']]['github']['runs_on'])}",
             f"    timeout-minutes: {b.get('timeout_minutes', defaults['timeout_minutes'])}",
             "    steps:",
-            *(['      - name: "qq backfill commit check"', "        if: github.event_name == 'workflow_dispatch'",
+            *(['      - name: "qq backfill commit check"', "        id: qq-backfill",
+               "        if: github.event_name == 'workflow_dispatch'",
                "        env:", "          COMMIT: ${{ inputs.commit }}", "          GH_TOKEN: ${{ github.token }}",
                "        run: |", *("          " + line for line in BACKFILL_CHECK.format(
                    branch=repo["default_branch"]).splitlines())] if post else []),
@@ -490,12 +495,16 @@ def render(cfg: dict) -> dict[str, str]:
                           path=path, case=f"test ({k})").splitlines())]
         if timed:
             # V0-GAT-04: queue-entry to verdict time, red verdicts included; exports nothing it can't
-            # measure and never fails.
-            lines += [f"      - uses: {defaults['timing']}", "        if: always() && github.event_name == 'merge_group'"]
+            # measure. Bounded and non-fatal so a slow install can't hang or fail the required check.
+            lines += [f"      - uses: {defaults['timing']}", "        if: always() && github.event_name == 'merge_group'",
+                      "        timeout-minutes: 3", "        continue-on-error: true"]
         if reports:
             # V0-TST-01: store this run's test results even when a test step failed. Post-submit names
             # the commit it tested, which on a backfill is not GITHUB_SHA (the branch tip there).
-            lines += ['      - name: "qq result sink"', "        if: always()",
+            # A refused or cancelled backfill check tested nothing, so it stores nothing (the store is write-once).
+            sink_if = ("always() && (steps.qq-backfill.outcome == 'success' || steps.qq-backfill.outcome == 'skipped')"
+                       if post else "always()")
+            lines += ['      - name: "qq result sink"', f"        if: {sink_if}",
                       f"        uses: {defaults['results']['sink']}",
                       "        with:", "          junit: |", *(f"            {g}" for g in dict.fromkeys(reports)),
                       *([f"          commit: {commit}", "          kind: postsubmit"] if post else [])]
