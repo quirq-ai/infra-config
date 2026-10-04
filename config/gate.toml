@@ -11,7 +11,7 @@ chromium = "LUCI CV and commit-queue.cfg; docs/infra/cq.md"
 
 [merge_queue]
 backend = "github"                # v0: GitHub merge queue, which needs public repos (settled: public only)
-merge_method = "squash"           # xo-space already squash-merges. TODO(suraj): confirm squash merges for every repo.
+merge_method = "squash"           # xo-space already squash-merges. TODO(suraj, v0): confirm squash merges for every repo.
 required = "blocking-builders"    # every builder with blocking = true is a required check
 
 [admission]

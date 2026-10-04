@@ -4,6 +4,8 @@
     python3 tools/qqcfg.py validate [--todos]   schema, cross-references, policy invariants,
                                                 and generated files in sync. Exit 1 on any error.
     python3 tools/qqcfg.py generate             rewrite generated/<backend>/ from config/.
+    python3 tools/qqcfg.py get AREA [KEY.PATH]  print an area, or one value in it, as JSON, for readers
+                                                outside Python (the scorecard reads org budget this way).
 
 Config is TOML: parsed, never executed. Needs Python 3.11+ (tomllib) and jsonschema (requirements.txt).
 """
@@ -39,7 +41,8 @@ AGENT_ALONE_CLASSES = {"clean-revert", "dependency-roll", "docs"}
 HUMAN_APPROVALS = {"human-owner", "policy-owner"}
 UNLANDED_TRIGGERS = {"change", "queue"}  # run code from an open change, before it lands
 
-TODO_RE = re.compile(r"TODO\((suraj|expert)\):\s*(.+)")
+# A TODO names who decides (suraj or expert) and, optionally, the version that needs it: "suraj, v0".
+TODO_RE = re.compile(r"TODO\((suraj|expert)(?:,\s*(v\d+))?\):\s*(.+)")
 
 
 class ConfigError(Exception):
@@ -404,8 +407,37 @@ def todos(root: Path) -> list[str]:
         for n, line in enumerate(path.read_text().splitlines(), 1):
             m = TODO_RE.search(line)
             if m:
-                found.append(f"{path.relative_to(root)}:{n}: TODO({m.group(1)}): {m.group(2).strip()}")
+                who = m.group(1) + (f", {m.group(2)}" if m.group(2) else "")
+                found.append(f"{path.relative_to(root)}:{n}: TODO({who}): {m.group(3).strip()}")
     return found
+
+
+def unowned(cfg: dict) -> dict[str, list[str]]:
+    """Every owners list and rotation suraj has yet to fill (V0-ORG-02). Empty lists mean done."""
+    return {
+        "areas": sorted(a for a, c in cfg.items() if not c["area"]["owners"]),
+        "product repos": [r["name"] for r in cfg["repos"]["repo"] if not r["owners"]],
+        "infra repos": [r["name"] for r in cfg["org"]["infra_repo"] if not r["owners"]],
+        "rotations": [r["name"] for r in cfg["org"]["rotation"] if not r["members"]],
+    }
+
+
+def get(cfg: dict, area: str, key: str | None = None):
+    """One area, or one dotted key in it. Arrays of tables are addressed by their `name`."""
+    if area not in cfg:
+        raise ConfigError(f"no area {area!r}; areas: {', '.join(sorted(cfg))}")
+    value, path = cfg[area], area
+    for part in key.split(".") if key else []:
+        path += "." + part
+        if isinstance(value, list):
+            value = next((i for i in value if isinstance(i, dict) and i.get("name") == part), None)
+        elif isinstance(value, dict):
+            value = value.get(part)
+        else:
+            value = None
+        if value is None:
+            raise ConfigError(f"{path}: not found")
+    return value
 
 
 def validate(root: Path) -> tuple[list[str], list[str]]:
@@ -440,21 +472,38 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
             errors.append(f"generate: {e}")
     stubs = sorted(a for a, c in cfg.items() if c["area"]["status"] == "stub")
     report.append(f"note  status     {len(cfg) - len(stubs)} seed, {len(stubs)} stub: {', '.join(stubs)}")
-    unowned = [a for a, c in cfg.items() if not c["area"]["owners"]]
-    unowned_repos = [r["name"] for r in cfg["repos"]["repo"] if not r["owners"]]
-    unowned_infra = [r["name"] for r in cfg["org"]["infra_repo"] if not r["owners"]]
-    report.append(f"note  owners     empty in {len(unowned)} areas, {len(unowned_repos)} product repos and "
-                  f"{len(unowned_infra)} infra repos (suraj assigns)")
-    report.append(f"note  todos      {len(todos(root))} open (python3 tools/qqcfg.py validate --todos)")
+    empty = {k: v for k, v in unowned(cfg).items() if v}
+    if empty:
+        report.append("note  owners     empty, for suraj to fill (V0-ORG-02): "
+                      + "; ".join(f"{len(v)} {k} ({', '.join(v)})" for k, v in empty.items()))
+    else:
+        report.append("ok    owners     every area, repo and rotation has owners")
+    budget = cfg["org"]["budget"]["monthly_ci_usd"]
+    report.append(f"note  budget     monthly CI ceiling {'not set (V0-ORG-04)' if not budget else f'${budget:g}'}")
+    found = todos(root)
+    v0 = sum(", v0)" in t for t in found)
+    report.append(f"note  todos      {len(found)} open, {v0} needed for v0 (python3 tools/qqcfg.py validate --todos)")
     return errors, report
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="qqcfg", description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=["validate", "generate"])
+    ap.add_argument("command", choices=["validate", "generate", "get"])
+    ap.add_argument("area", nargs="?", help="get: the area, e.g. org")
+    ap.add_argument("key", nargs="?", help="get: a dotted key, e.g. budget.monthly_ci_usd")
     ap.add_argument("--root", type=Path, default=ROOT, help="repo root (default: this checkout)")
     ap.add_argument("--todos", action="store_true", help="validate: also list open TODOs")
     args = ap.parse_args(argv)
+
+    if args.command == "get":
+        if not args.area:
+            ap.error("get needs an AREA")
+        try:
+            print(json.dumps(get(load(args.root), args.area, args.key), indent=2, sort_keys=True))
+        except ConfigError as e:
+            print(f"qqcfg get: {e}", file=sys.stderr)
+            return 1
+        return 0
 
     if args.command == "generate":
         cfg = load(args.root)

@@ -22,7 +22,7 @@ name = "canary"
 audience = ["agents"]
 from = "lkgr"
 cadence = "daily"
-schedule = "17 6 * * *"  # cron, UTC, off the hour: GitHub may delay or drop top-of-hour runs. TODO(suraj): pick the canary hour.
+schedule = "17 6 * * *"  # cron, UTC, off the hour: GitHub may delay or drop top-of-hour runs. TODO(suraj, v0): pick the canary hour.
 unattended = true        # nobody watches it; failures go to the gardener and postmortem.toml
 [channel.promotion]
 approval = "none"        # automatic once lkgr moves

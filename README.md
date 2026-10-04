@@ -26,6 +26,7 @@ python3 -m pip install -r requirements.txt     # jsonschema; Python 3.11+ for to
 python3 tools/qqcfg.py validate                # the CI check; exit 1 on any error
 python3 tools/qqcfg.py validate --todos        # also list every open decision
 python3 tools/qqcfg.py generate                # rewrite generated/ after editing config/
+python3 tools/qqcfg.py get org budget           # one area or value as JSON, for non-Python readers
 python3 -m unittest discover -s tests          # seed passes; known-bad changes fail
 ```
 
@@ -149,17 +150,19 @@ Where the plan left a choice open, I picked the simplest well-known option:
 
 ## Open decisions
 
-`python3 tools/qqcfg.py validate --todos` lists all of them. The ones for suraj:
+`python3 tools/qqcfg.py validate --todos` lists all of them; those v0 needs are marked
+`TODO(suraj, v0)`. `validate` also lists every empty `owners` list and rotation, and whether the
+compute ceiling is set. The ones for suraj:
 
-- the hour of the daily canary deploy (`channels.toml`)
-- whether the cap of 10 keeps counting reverts created, the default, or counts only auto-landed
+- **v0:** the hour of the daily canary deploy (`channels.toml`)
+- **v0:** whether the cap of 10 keeps counting reverts created, the default, or counts only auto-landed
   ones (`auto_revert.toml`)
 - whether an agent may roll stable back on its own when a health signal breaches (`channels.toml`)
 - the stable target of every two weeks, each promotion still his to approve (`channels.toml`)
-- the monthly CI compute ceiling (`org.toml`)
-- squash merges for every repo (`gate.toml`)
+- **v0:** the monthly CI compute ceiling (`org.toml`)
+- **v0:** squash merges for every repo (`gate.toml`)
 - the PostHog host and projects (`health.toml`)
-- the owners of every area and repo, and the members of every rotation
+- **v0:** the owners of every area and repo, and the members of every rotation
 
 ## How this fits with the other repos
 

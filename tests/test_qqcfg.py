@@ -161,5 +161,27 @@ class BadChangesFail(unittest.TestCase):
         self.assertFails("'ecosystem' is a required property")
 
 
+
+class Readers(unittest.TestCase):
+    def setUp(self):
+        self.cfg = qqcfg.load(ROOT)
+
+    def test_get_reads_a_dotted_key(self):
+        self.assertIsInstance(qqcfg.get(self.cfg, "org", "budget.monthly_ci_usd"), (int, float))
+
+    def test_get_finds_array_items_by_name(self):
+        self.assertEqual(qqcfg.get(self.cfg, "channels", "channel.canary.audience"), ["agents"])
+
+    def test_get_reports_a_missing_key(self):
+        with self.assertRaisesRegex(qqcfg.ConfigError, "org.budget.nope: not found"):
+            qqcfg.get(self.cfg, "org", "budget.nope")
+
+    def test_unowned_lists_rotations(self):
+        self.assertIn("rotations", qqcfg.unowned(self.cfg))
+
+    def test_v0_todos_are_marked(self):
+        self.assertTrue(any("TODO(suraj, v0)" in t for t in qqcfg.todos(ROOT)))
+
+
 if __name__ == "__main__":
     unittest.main()
