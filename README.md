@@ -27,6 +27,7 @@ python3 tools/qqcfg.py validate                # the CI check; exit 1 on any err
 python3 tools/qqcfg.py validate --todos        # also list every open decision
 python3 tools/qqcfg.py generate                # rewrite generated/ after editing config/
 python3 tools/qqcfg.py deliver xo-space ../xo-space   # copy its generated workflows into a checkout
+python3 tools/qqcfg.py check-delivered xo-space ../xo-space   # the qq-drift check
 python3 -m unittest discover -s tests          # seed passes; known-bad changes fail
 ```
 
@@ -138,9 +139,11 @@ Where the plan left a choice open, I picked the simplest well-known option:
   tools and editors can use the same schemas.
 - **GitHub Actions as the only generator target.** Every presubmit and post-submit builder for
   xo-space and innernet is generated into `generated/github/<repo>/` and copied into the repo with
-  `python3 tools/qqcfg.py deliver <repo> <checkout>` (V0-CFG-02). Each stub carries a
-  `# qq-digest:` line, and a drift-check step in both stubs fails when any `qq-*.yml` was edited by
-  hand. Canary builders follow once release has an executor. Steps are interim commands in
+  `python3 tools/qqcfg.py deliver <repo> <checkout>` (V0-CFG-02). The binding drift check is
+  `.github/workflows/qq-drift.yml` here, run as an organization-required workflow in every product
+  repo: it fails a PR whose `qq-*.yml` stubs differ from infra-config `main`, are renamed or missing,
+  or whose own workflows define a generated job. A PR cannot edit it, because it lives here. Each stub
+  also carries a `# qq-digest:` line and a fast in-repo drift step. Canary builders follow once release has an executor. Steps are interim commands in
   `kinds.toml` until the recipes adapters exist (V0-REC-02, V0-REC-03); they pass locally against
   xo-space `c3cea98` (Python 3.14.8) and innernet `da9b84c` (pnpm install, typecheck, build). The
   xo-space stub checks less than its own `tests.yml`, which stays a required check until the repo's

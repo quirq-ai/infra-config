@@ -1,0 +1,33 @@
+# Hand-written, like validate.yml. Meant to run as an organization-required workflow (an org
+# ruleset, "Require workflows to pass before merging", pointing at this file on main) in every repo
+# listed in config/repos.toml. A PR in a product repo cannot edit this file, so a hand-edited,
+# renamed or deleted qq-*.yml stub fails it (V0-CFG-02). Repos with nothing delivered pass.
+name: qq-drift
+on:
+  pull_request:
+  merge_group:
+permissions:
+  contents: read
+jobs:
+  qq-drift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: target
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: quirq-ai/infra-config
+          ref: main
+          path: infra-config
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: python -m pip install --quiet -r infra-config/requirements.txt
+      - name: compare delivered stubs with infra-config main
+        env:
+          REPO: ${{ github.event.repository.name }}
+        run: python infra-config/tools/qqcfg.py check-delivered "$REPO" target

@@ -150,6 +150,50 @@ class Delivery(unittest.TestCase):
         self.assertIn("removed .github/workflows/qq-old-builder.yml", qqcfg.deliver(self.cfg, "innernet", self.dest))
         self.assertEqual(qqcfg.deliver(self.cfg, "innernet", self.dest), [])
 
+    def test_checks_run_the_step_as_generated(self):
+        # Parse the YAML so a quoting or indent regression in render() is caught, not just DRIFT_CHECK.
+        import yaml
+        for path, text in qqcfg.render(self.cfg).items():
+            doc = yaml.safe_load(text)
+            steps = next(iter(doc["jobs"].values()))["steps"]
+            drift = [s["run"] for s in steps if "drift" in s.get("name", "")]
+            self.assertEqual(drift, [qqcfg.DRIFT_CHECK + "\n"], path)
+
+    def test_postsubmit_has_no_concurrency_group(self):
+        # A group keeps one pending run, so bursty landings would drop post-submit verdicts.
+        import yaml
+        doc = yaml.safe_load(qqcfg.render(self.cfg)["github/xo-space/qq-xo-space-postsubmit.yml"])
+        self.assertNotIn("concurrency", doc)
+
+    def test_check_delivered_passes_a_fresh_delivery(self):
+        for repo in ("xo-space", "innernet"):
+            qqcfg.deliver(self.cfg, repo, self.dest)
+            self.assertEqual(qqcfg.check_delivered(self.cfg, repo, self.dest), [])
+            shutil.rmtree(self.dest / ".github")
+
+    def test_check_delivered_catches_an_edit_that_also_drops_the_drift_step(self):
+        qqcfg.deliver(self.cfg, "xo-space", self.dest)
+        stub = self.dest / ".github/workflows/qq-xo-space-presubmit.yml"
+        stub.write_text(stub.read_text().replace("qq drift check", "renamed step"))
+        self.assertTrue(any("differs from infra-config" in e for e in qqcfg.check_delivered(self.cfg, "xo-space", self.dest)))
+
+    def test_check_delivered_catches_a_renamed_stub(self):
+        qqcfg.deliver(self.cfg, "innernet", self.dest)
+        wf = self.dest / ".github/workflows"
+        (wf / "qq-innernet-presubmit.yml").rename(wf / "innernet-ci.yaml")
+        errors = qqcfg.check_delivered(self.cfg, "innernet", self.dest)
+        self.assertTrue(any("qq-innernet-presubmit.yml: missing" in e for e in errors), errors)
+        self.assertTrue(any("innernet-ci.yaml: not generated" in e for e in errors), errors)
+
+    def test_check_delivered_catches_a_hand_written_job_with_the_check_name(self):
+        qqcfg.deliver(self.cfg, "innernet", self.dest)
+        (self.dest / ".github/workflows/fake.yml").write_text("jobs:\n  innernet-presubmit:\n    runs-on: x\n")
+        self.assertTrue(any("defines generated job 'innernet-presubmit'" in e
+                            for e in qqcfg.check_delivered(self.cfg, "innernet", self.dest)))
+
+    def test_check_delivered_ignores_repos_with_nothing_delivered(self):
+        self.assertEqual(qqcfg.check_delivered(self.cfg, "infra-config", self.dest), [])
+
     def test_deliver_leaves_hand_written_workflows_alone(self):
         own = self.dest / ".github/workflows/tests.yml"
         own.parent.mkdir(parents=True)
