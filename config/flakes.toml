@@ -1,16 +1,18 @@
 # How a test failure becomes a verdict, and how flaky tests are quarantined (plan §3 P5).
-# STUB: shape and proposed numbers only. Nothing reads this until test-pipelines exists (P2).
+# SEED (V0-CFG-03): the v0 retry values. test-pipelines' verdict (V0-TST-03) reads [verdict]; the
+# rest is read once quarantine lands (v1). Numbers are proposals, as Chromium's (cq.md) are tuned.
 
 [area]
 name = "flakes"
-status = "stub"
+status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
-read_by = ["test-pipelines (P2)", "gate"]
+read_by = ["test-pipelines (V0-TST-03)", "gate"]
 chromium = "ResultDB, LUCI Analysis exoneration (luci-analysis.cfg), retry with and without patch (cq.md)"
 
 [verdict]
 retry_failed = 1             # rerun failing tests once with the change
+max_failures_to_retry = 20   # more failures than this: the change is broken, so skip retries and fail fast
 compare_with_base = true     # then without it; only failures that pass without the change fail it
 exonerate_known_flakes = true
 # TODO(expert): the exoneration thresholds, as LUCI Analysis keeps them in config.
