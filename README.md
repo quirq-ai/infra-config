@@ -146,9 +146,10 @@ Where the plan left a choice open, I picked the simplest well-known option:
   `.github/workflows/qq-drift.yml` here, run as an organization-required workflow in every product
   repo: it fails a PR whose `qq-*.yml` stubs differ from infra-config `main`, are renamed or missing,
   or whose own workflows define a check with a generated builder's name (YAML is parsed, so quoting,
-  flow style or a `name:` on another job id don't escape it). Stubs `main` generated within
-  `drift_grace_days` (pipelines.toml) pass with a warning, so a generator change doesn't turn open
-  product PRs red before redelivery. PRs into other branches than the default pass. A PR cannot edit
+  flow style or a `name:` on another job id don't escape it). While a PR leaves its `qq-*` files
+  alone, stubs `main` generated within `drift_grace_days` (pipelines.toml) pass with a warning, so a
+  generator change doesn't turn open product PRs red before redelivery; a PR that edits them must
+  match `main` exactly. PRs into other branches than the default pass. A PR cannot edit
   it, because it lives here. Each stub
   also carries a `# qq-digest:` line and a fast in-repo drift step. Canary builders follow once release has an executor. Steps are interim commands in
   `kinds.toml` until the recipes adapters exist (V0-REC-02, V0-REC-03); they pass locally against

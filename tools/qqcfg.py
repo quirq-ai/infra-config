@@ -458,70 +458,95 @@ def render(cfg: dict) -> dict[str, str]:
     return out
 
 
+def _git(root: Path, *a: str) -> str:
+    import subprocess
+    try:
+        return subprocess.run(["git", "-C", str(root), *a], check=True, capture_output=True, text=True).stdout
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise ConfigError(f"git {' '.join(a)} in {root}: {getattr(e, 'stderr', '') or e}".strip()) from None
+
+
 def generations(root: Path, repo: str, days: int) -> list[dict[str, str]]:
     """Earlier sets of repo's stubs that were current on this checkout's branch within the last days.
 
-    A set counts while it was current, so it is the parent tree of each commit in the window that
-    changed generated/github/<repo>/. Needs a git checkout with that history (fetch-depth: 0).
+    A set counts while it was current, so it is the first parent's tree of each first-parent commit
+    in the window that changed generated/github/<repo>/. Needs that history (fetch-depth: 0).
     """
-    import subprocess
-
-    def git(*a: str) -> str:
-        return subprocess.run(["git", "-C", str(root), *a], check=True, capture_output=True, text=True).stdout
-
     gen = f"generated/github/{repo}"
     out = []
-    for c in git("log", "--format=%H", f"--since={days} days ago", "--", gen).split():
+    for c in _git(root, "log", "--first-parent", "--format=%H", f"--since={days} days ago", "--", gen).split():
         try:
-            names = git("ls-tree", "--name-only", f"{c}^", f"{gen}/").split()
-        except subprocess.CalledProcessError:
+            names = [n for n in _git(root, "ls-tree", "-z", "--name-only", f"{c}^1", f"{gen}/").split("\0") if n]
+        except ConfigError:
             continue  # the first commit has no parent
-        out.append({Path(n).name: git("show", f"{c}^:{n}") for n in names})
+        if names:
+            out.append({Path(n).name: _git(root, "show", f"{c}^1:{n}") for n in names})
     return out
 
 
+def pr_changes_stubs(dest: Path) -> bool:
+    """Whether the checked-out PR (or merge-queue) commit changes any qq-* workflow against its base.
+
+    The checkout is the merge commit, so its first parent is the base. If that can't be read, assume
+    it does: the grace window is then off, which fails closed.
+    """
+    try:
+        changed = _git(dest, "diff", "-z", "--name-only", "HEAD^1", "HEAD", "--", WORKFLOWS).split("\0")
+    except ConfigError:
+        return True
+    return any(Path(n).name.lower().startswith("qq-") for n in changed if n)
+
+
+def _check_key(name: str) -> str:
+    return name.strip().casefold()  # compare check names loosely, so near-misses fail closed
+
+
 def workflow_checks(text: str) -> list[str]:
-    """Check names a workflow file defines: each job's `name:`, or its id when it has none (as gate reads them)."""
+    """Check names a workflow file defines: each job's `name:`, or its id when that is empty (as gate reads them)."""
     import yaml
     doc = yaml.safe_load(text) or {}
     jobs = doc.get("jobs") if isinstance(doc, dict) else None
     if not isinstance(jobs, dict):
         return []
-    return [str(j.get("name", jid)) if isinstance(j, dict) else str(jid) for jid, j in jobs.items()]
+    return [str((j.get("name") if isinstance(j, dict) else None) or jid) for jid, j in jobs.items()]
 
 
 def check_delivered(cfg: dict, repo: str, dest: Path, older: list[dict[str, str]] = (), warn=None) -> list[str]:
     """Compare a product repo's workflows with what infra-config generates for it (V0-CFG-02).
 
-    The stubs must be byte-identical to what main generates, or to an older set in `older` (a grace
-    window, so a generator change does not turn every open product PR red; `warn` hears about it).
-    No other workflow may be a qqcfg stub, or define a check with a generated builder's name, under
-    any job id, quoting or YAML style (renaming a stub does not escape the check). Returns errors.
+    The stubs must be byte-identical to what main generates. `older` holds stub sets main generated
+    within the grace window: a complete older set also passes, with a warning, but callers pass it
+    only when the change under test leaves the qq-* files alone (an open PR that predates a generator
+    change), never when it edits them, so it cannot be used to downgrade. No other workflow may be a
+    qqcfg stub, or define a check with a generated builder's name, under any job id, quoting or YAML
+    style (renaming a stub does not escape the check). Returns errors.
     """
     if repo not in by_name(cfg["repos"]["repo"]):
         return []  # nothing is delivered to repos outside repos.toml, infra-config included
     prefix = f"github/{repo}/"
-    want = {k[len(prefix):]: v for k, v in render(cfg).items() if k.startswith(prefix)}
+    want = {k[len(prefix):]: v.encode() for k, v in render(cfg).items() if k.startswith(prefix)}
     wf = dest / WORKFLOWS
-    have = {p.name: p.read_text(errors="replace") for p in sorted(wf.glob("*")) if p.is_file()} if wf.is_dir() else {}
+    have = {p.name: p.read_bytes() for p in sorted(wf.glob("*")) if p.is_file()} if wf.is_dir() else {}
     errors = []
-    checks = {re.sub(r"^qq-|\.yml$", "", n) for g in (want, *older) for n in g}
-    stale = next((g for g in older if g and all(have.get(n) == t for n, t in g.items())), None)
+    checks = {_check_key(re.sub(r"^qq-|\.yml$", "", n)) for g in (want, *older) for n in g}
+    stale = next((g for g in ({n: t.encode() for n, t in g.items()} for g in older)
+                  if g and all(have.get(n) == t for n, t in g.items())), None)
     if stale is not None and any(have.get(n) != t for n, t in want.items()):
         if warn:
             warn(f"{repo}'s stubs come from an earlier infra-config main; redeliver with qqcfg deliver {repo}")
         want = stale
-    for name, text in sorted(want.items()):
+    for name, data in sorted(want.items()):
         if name not in have:
             errors.append(f"{WORKFLOWS}/{name}: missing; deliver it with qqcfg deliver {repo}")
-        elif have[name] != text:
+        elif have[name] != data:
             errors.append(f"{WORKFLOWS}/{name}: differs from infra-config; change config there and redeliver")
-    for name, text in have.items():
+    for name, data in have.items():
         if name in want:
             continue
-        if name.startswith("qq-") or "GENERATED by qqcfg" in text:
+        text = data.decode(errors="replace")
+        if name.lower().startswith("qq-") or "GENERATED by qqcfg" in text:
             errors.append(f"{WORKFLOWS}/{name}: not generated for {repo}; remove it or redeliver")
-        if not name.endswith((".yml", ".yaml")):
+        if not name.lower().endswith((".yml", ".yaml")):
             continue
         try:
             found = workflow_checks(text)
@@ -529,7 +554,7 @@ def check_delivered(cfg: dict, repo: str, dest: Path, older: list[dict[str, str]
             errors.append(f"{WORKFLOWS}/{name}: not valid YAML ({e.__class__.__name__}); fix it so qq-drift can read it")
             continue
         for c in found:
-            if c in checks:
+            if _check_key(c) in checks:
                 errors.append(f"{WORKFLOWS}/{name}: defines check {c!r}, which only its generated stub may define")
             elif "${{" in c:
                 errors.append(f"{WORKFLOWS}/{name}: job name {c!r} is an expression; use a literal so qq-drift can check it")
@@ -671,7 +696,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--todos", action="store_true", help="validate: also list open TODOs")
     ap.add_argument("--base", help="check-delivered: the PR's base branch; other branches than the default pass")
     ap.add_argument("--history", action="store_true",
-                    help="check-delivered: also accept stubs main generated within drift_grace_days (needs git history)")
+                    help="check-delivered: when DIR's commit leaves qq-* files alone, also accept stubs main "
+                         "generated within drift_grace_days (needs git history in both checkouts)")
     args = ap.parse_args(argv)
 
     if args.command == "get":
@@ -696,7 +722,15 @@ def main(argv: list[str] | None = None) -> int:
         if base and base != repo["default_branch"]:
             print(f"PASS: stubs are delivered to {repo['default_branch']}, not {base}")
             return 0
-        older = generations(args.root, args.target, cfg["pipelines"]["defaults"]["drift_grace_days"]) if args.history else []
+        older = []
+        if args.history:
+            if pr_changes_stubs(Path(args.detail)):
+                print("::notice::this change edits qq-* workflows, so only main's current stubs are accepted")
+            else:
+                try:
+                    older = generations(args.root, args.target, cfg["pipelines"]["defaults"]["drift_grace_days"])
+                except ConfigError as e:
+                    print(f"::warning::grace window unavailable, checking against main only: {e}")
         errors = check_delivered(cfg, args.target, Path(args.detail), older, warn=lambda w: print(f"::warning::{w}"))
         for e in errors:
             print(f"::error::{e}")

@@ -318,12 +318,16 @@ class Delivery(unittest.TestCase):
             "comment": "jobs:\n  innernet-presubmit:   # mine\n    runs-on: x\n",
             "flow": "jobs: {innernet-presubmit: {runs-on: x}}\n",
             "renamed": "jobs:\n  other:\n    name: innernet-presubmit\n    runs-on: x\n",
+            "null name": "jobs:\n  innernet-presubmit:\n    name: ~\n    runs-on: x\n",
+            "case": "jobs:\n  other:\n    name: ' Innernet-Presubmit'\n",
         }
         qqcfg.deliver(self.cfg, "innernet", self.dest)
         for label, text in spoofs.items():
             with self.subTest(label):
-                (self.dest / ".github/workflows/fake.yaml").write_text(text)
-                self.assertTrue(any("defines check 'innernet-presubmit'" in e
+                for f in (self.dest / ".github/workflows").glob("fake*"):
+                    f.unlink()
+                (self.dest / f".github/workflows/fake.{'YML' if label == 'case' else 'yaml'}").write_text(text)
+                self.assertTrue(any("defines check" in e
                                     for e in qqcfg.check_delivered(self.cfg, "innernet", self.dest)), label)
 
     def test_check_delivered_rejects_expression_names_and_bad_yaml(self):
@@ -347,6 +351,31 @@ class Delivery(unittest.TestCase):
         self.assertTrue(any("redeliver" in w for w in warnings))
         (wf / "qq-innernet-presubmit.yml").write_text("hand edit")  # a mix of neither still fails
         self.assertTrue(qqcfg.check_delivered(self.cfg, "innernet", self.dest, [old]))
+
+    def test_check_delivered_compares_bytes(self):
+        qqcfg.deliver(self.cfg, "innernet", self.dest)
+        stub = self.dest / ".github/workflows/qq-innernet-presubmit.yml"
+        stub.write_bytes(stub.read_bytes().replace(b"\n", b"\r\n"))
+        self.assertTrue(any("differs" in e for e in qqcfg.check_delivered(self.cfg, "innernet", self.dest)))
+
+    def test_pr_changes_stubs_reads_the_merge_commit(self):
+        # Review of audit S3: the grace window is only for PRs that leave the stubs alone.
+        repo = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, repo)
+        wf = repo / ".github/workflows"
+        wf.mkdir(parents=True)
+        git = lambda *a: subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                                        check=True, capture_output=True)
+        git("init", "-q")
+        (wf / "qq-innernet-presubmit.yml").write_text("old")
+        git("add", "-A"); git("commit", "-qm", "base")
+        self.assertTrue(qqcfg.pr_changes_stubs(repo))  # no parent: fail closed
+        (wf / "tests.yml").write_text("mine")
+        git("add", "-A"); git("commit", "-qm", "other workflow")
+        self.assertFalse(qqcfg.pr_changes_stubs(repo))
+        (wf / "qq-innernet-presubmit.yml").unlink()
+        git("add", "-A"); git("commit", "-qm", "drop a stub")
+        self.assertTrue(qqcfg.pr_changes_stubs(repo))
 
     def test_generations_reads_stubs_that_were_current_in_the_window(self):
         repo = Path(tempfile.mkdtemp())
