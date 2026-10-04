@@ -125,10 +125,10 @@ class BadChangesFail(unittest.TestCase):
         self.assertFails("max_minuets")
 
     def test_required_copy_over_gate_ruleset_cap_rejected(self):
-        # Even a non-blocking presubmit gets an org-required copy, and gate's rulesets refuse jobs over 40 min.
+        # Even a non-blocking presubmit gets an org-required copy, and gate's rulesets refuse jobs over max_minutes.
         self.edit("config/pipelines.toml", "blocking = true\ntimeout_minutes = 20\ngenerate = true\n\n[[builder]]\nname = \"innernet-postsubmit\"",
                   "blocking = false\ntimeout_minutes = 41\ngenerate = true\n\n[[builder]]\nname = \"innernet-postsubmit\"")
-        self.assertFails("org-required copy may not run longer than 40 minutes")
+        self.assertFails("org-required copy may not run longer than gate admission max_minutes (40)")
 
     def test_hand_edited_generated_file_rejected(self):
         self.edit("generated/github/xo-space/qq-xo-space-presubmit.yml", "timeout-minutes: 20", "timeout-minutes: 90")
@@ -380,7 +380,7 @@ class Delivery(unittest.TestCase):
             self.assertEqual(doc[True], stub[True])
             self.assertNotIn("concurrency", doc)  # a ruleset workflow must not be cancelled in progress
             self.assertNotIn("cancel-in-progress", req[f".github/workflows/qq-required-{b['name']}.yml"])
-            self.assertLessEqual(job["timeout-minutes"], qqcfg.REQUIRED_MAX_MINUTES)  # gate's ruleset cap
+            self.assertLessEqual(job["timeout-minutes"], self.cfg["gate"]["admission"]["max_minutes"])  # gate's ruleset cap
             self.assertEqual(doc["permissions"], {"contents": "read"})
             # Same commands; timing and result storage stay with the stub so nothing is stored twice.
             runs = [st.get("run") for st in job["steps"]]
