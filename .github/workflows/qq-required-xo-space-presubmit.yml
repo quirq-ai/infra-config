@@ -8,9 +8,6 @@ on:
   merge_group:
 permissions:
   contents: read
-concurrency:
-  group: "qq-required-xo-space-presubmit-${{ github.ref }}"
-  cancel-in-progress: true
 jobs:
   xo-space-presubmit-pinned:
     if: github.repository == 'quirq-ai/xo-space'

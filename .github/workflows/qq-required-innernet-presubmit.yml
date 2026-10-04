@@ -8,9 +8,6 @@ on:
   merge_group:
 permissions:
   contents: read
-concurrency:
-  group: "qq-required-innernet-presubmit-${{ github.ref }}"
-  cancel-in-progress: true
 jobs:
   innernet-presubmit-pinned:
     if: github.repository == 'quirq-ai/innernet'
