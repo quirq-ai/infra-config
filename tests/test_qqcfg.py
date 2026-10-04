@@ -37,7 +37,7 @@ class BadChangesFail(unittest.TestCase):
         self.assertTrue(any(needle in e for e in errors), f"expected {needle!r} in {errors}")
 
     def test_result_sink_must_be_pinned_by_commit(self):
-        self.edit("config/pipelines.toml", "sink@1e3ddb19c7611527f5e231ab63d4cda8c0f68781", "sink@main")
+        self.edit("config/pipelines.toml", "sink@1a54cc25766ea0ba9de99a0f3a7f94c68de28c0d", "sink@main")
         self.assertFails("does not match")
 
     def test_mistagged_todo_rejected(self):
@@ -264,8 +264,7 @@ class Delivery(unittest.TestCase):
             doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{b['repo']}/qq-{b['name']}.yml"])
             last = next(iter(doc["jobs"].values()))["steps"][-1]
             if "test" in b["capabilities"]:
-                want_if = "always() && github.event_name != 'workflow_dispatch'" if b["pipeline"] == "postsubmit" else "always()"
-                self.assertEqual((last.get("uses"), last.get("if")), (sink, want_if), b["name"])
+                self.assertEqual((last.get("uses"), last.get("if")), (sink, "always()"), b["name"])
                 kinds = qqcfg.by_name(self.cfg["kinds"]["kind"])
                 want = [g for k in b["kinds"] if "test" in kinds[k].get("interim", {})
                         for g in kinds[k].get("test_reports", [f"results/qq/{k}.xml"])]
@@ -308,7 +307,8 @@ class Delivery(unittest.TestCase):
             self.assertEqual(steps[0]["name"], "qq backfill commit check")
             self.assertEqual(steps[1]["with"]["ref"], "${{ inputs.commit || github.sha }}")
             sink = next(st for st in steps if st.get("name") == "qq result sink")
-            self.assertIn("github.event_name != 'workflow_dispatch'", sink["if"])
+            self.assertEqual((sink["if"], sink["with"]["commit"], sink["with"]["kind"]),
+                             ("always()", "${{ inputs.commit || github.sha }}", "postsubmit"))
 
     def test_backfill_check_rejects_a_short_or_odd_commit(self):
         script = qqcfg.BACKFILL_CHECK.format(branch="main")

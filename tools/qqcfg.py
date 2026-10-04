@@ -489,12 +489,12 @@ def render(cfg: dict) -> dict[str, str]:
             # measure and never fails.
             lines += [f"      - uses: {defaults['timing']}", "        if: always() && github.event_name == 'merge_group'"]
         if reports:
-            # V0-TST-01: store this run's test results even when a test step failed. Skipped on a
-            # backfill until the sink can record a commit other than GITHUB_SHA (the branch tip there).
-            lines += ['      - name: "qq result sink"',
-                      "        if: always() && github.event_name != 'workflow_dispatch'" if post else "        if: always()",
+            # V0-TST-01: store this run's test results even when a test step failed. Post-submit names
+            # the commit it tested, which on a backfill is not GITHUB_SHA (the branch tip there).
+            lines += ['      - name: "qq result sink"', "        if: always()",
                       f"        uses: {defaults['results']['sink']}",
-                      "        with:", "          junit: |", *(f"            {g}" for g in dict.fromkeys(reports))]
+                      "        with:", "          junit: |", *(f"            {g}" for g in dict.fromkeys(reports)),
+                      *([f"          commit: {commit}", "          kind: postsubmit"] if post else [])]
         out[f"github/{b['repo']}/qq-{b['name']}.yml"] = with_digest("\n".join(lines) + "\n")
     return out
 

@@ -33,7 +33,7 @@ timing = "quirq-ai/gate/timing@ce01a4b15f3a7a99d9895c5607c0ce88af67ea5a"
 # V0-TST-02). It reads each kind's test_reports (kinds.toml); a kind without them gets a one-case
 # report from its test step's outcome. Pinned by commit. TODO(expert): let rollers move this pin.
 [defaults.results]
-sink = "quirq-ai/test-pipelines/sink@1e3ddb19c7611527f5e231ab63d4cda8c0f68781"   # 1e3ddb1+ reads gate timing's QQ_QUEUED_AT
+sink = "quirq-ai/test-pipelines/sink@1a54cc25766ea0ba9de99a0f3a7f94c68de28c0d"   # 1e3ddb1+ reads QQ_QUEUED_AT; 1a54cc2+ takes commit
 
 # --- xo-space -------------------------------------------------------------------------------
 
