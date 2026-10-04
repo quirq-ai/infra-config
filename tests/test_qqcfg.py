@@ -1,4 +1,5 @@
 """The seed config passes, and known-bad changes fail. Run: python3 -m unittest discover -s tests"""
+import re
 import shutil
 import subprocess
 import sys
@@ -43,6 +44,12 @@ class BadChangesFail(unittest.TestCase):
         pinned = qqcfg.load(self.tmp)["pipelines"]["defaults"]["results"]["sink"]
         self.edit("config/pipelines.toml", pinned, pinned.split("@")[0] + "@main")
         self.assertFails("does not match")
+
+    def test_other_qq_workflows_may_not_list_a_file_twice(self):
+        repos = self.tmp / "config/repos.toml"  # the last [[repo]] is innernet, which lists qq-roll-land.yml
+        repos.write_text(repos.read_text() + '[[repo.other_qq_workflows]]\nfile = "qq-roll-land.yml"\n'
+                         'from = "quirq-ai/rollers"\nsha256 = "' + "0" * 64 + '"\n')
+        self.assertFails("other_qq_workflows lists a file twice")
 
     def test_mistagged_todo_rejected(self):
         self.edit("config/org.toml", "TODO(suraj, v0)", "TODO(suraj, V0)")
@@ -334,6 +341,22 @@ class Delivery(unittest.TestCase):
         os.symlink(outside, wf / "qq-old.yml")
         with self.assertRaises(qqcfg.ConfigError):
             qqcfg.deliver(self.cfg, "xo-space", self.dest)
+
+    def test_symlinked_workflow_directories_are_refused(self):
+        # Audit F3/R3: a .github or workflows directory that is a symlink is neither read nor written.
+        import os
+        real = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, real)
+        qqcfg.deliver(self.cfg, "xo-space", real)  # exact bytes, so only the link itself can fail
+        for linked in (".github", ".github/workflows"):
+            with self.subTest(linked=linked):
+                shutil.rmtree(self.dest)
+                (self.dest / linked).parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(real / linked, self.dest / linked)
+                self.assertTrue(any("is or sits under a symlink" in e
+                                    for e in qqcfg.check_delivered(self.cfg, "xo-space", self.dest)))
+                with self.assertRaises(qqcfg.ConfigError):
+                    qqcfg.deliver(self.cfg, "xo-space", self.dest)
 
     def test_listing_is_exact_and_never_covers_a_qqcfg_stub(self):
         qqcfg.deliver(self.cfg, "xo-space", self.dest)
@@ -634,6 +657,120 @@ class Delivery(unittest.TestCase):
         own.write_text("mine")
         qqcfg.deliver(self.cfg, "xo-space", self.dest)
         self.assertEqual(own.read_text(), "mine")
+
+
+class DriftWorkflow(unittest.TestCase):
+    """qq-drift.yml's own guards (audit F2, R1-R3): each test fails if its guard is removed or weakened."""
+
+    WF = ROOT / ".github/workflows/qq-drift.yml"
+    SHA = "0123456789abcdef0123456789abcdef01234567"
+    REF = "quirq-ai/infra-config/.github/workflows/qq-drift.yml@refs/heads/main"
+
+    def setUp(self):
+        import yaml
+        self.job = yaml.safe_load(self.WF.read_text())["jobs"]["qq-drift"]
+        self.steps = self.job["steps"]
+
+    def step(self, prefix):
+        return next(st for st in self.steps if st.get("name", "").startswith(prefix))
+
+    def run_step(self, prefix, env, cwd=None):
+        # As GitHub runs a `run:` step: bash -eo pipefail, the step's env only.
+        st = self.step(prefix)
+        return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", st["run"]],
+                              env={"PATH": "/usr/bin:/bin", **env}, cwd=cwd, capture_output=True, text=True)
+
+    def test_guard_accepts_only_this_file_from_infra_config(self):
+        ok = [self.REF, f"quirq-ai/infra-config/.github/workflows/qq-drift.yml@{self.SHA}"]
+        bad = ["", "quirq-ai/xo-space/.github/workflows/qq-drift.yml@refs/pull/218/merge",
+               "quirq-ai/xo-space/.github/workflows/qq-drift.yml@refs/heads/gh-readonly-queue/main/pr-1-abc",
+               "evil/infra-config/.github/workflows/qq-drift.yml@refs/heads/main",
+               "quirq-ai/infra-config/.github/workflows/qq-drift.yml.bak@refs/heads/main",
+               "quirq-ai/infra-config/.github/workflows/validate.yml@refs/heads/main",
+               "Quirq-AI/infra-config/.github/workflows/qq-drift.yml@refs/heads/main"]
+        for ref in ok + bad:
+            with self.subTest(ref=ref):
+                r = self.run_step("refuse a run that is not", {"WORKFLOW_REF": ref, "WORKFLOW_SHA": self.SHA})
+                self.assertEqual(r.returncode, 0 if ref in ok else 1, r.stdout + r.stderr)
+
+    def test_guard_requires_a_full_workflow_sha(self):
+        # Audit R1 case C: an empty SHA would check out main at run time.
+        for sha in ["", self.SHA[:7], self.SHA.upper(), self.SHA + "0", f"{self.SHA}\n", "refs/heads/main"]:
+            with self.subTest(sha=sha):
+                r = self.run_step("refuse a run that is not", {"WORKFLOW_REF": self.REF, "WORKFLOW_SHA": sha})
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+
+    def test_commit_check_requires_the_pin_on_infra_config_main(self):
+        # Audit R1 case D: the checked-out commit must be the pin and on main, not a fork's commit.
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp)
+        repo = tmp / "infra-config"
+        env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t",
+               "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+        def git(*a):
+            return subprocess.run(["git", "-C", str(repo), *a], env={"PATH": "/usr/bin:/bin", **env},
+                                  check=True, capture_output=True, text=True).stdout.strip()
+
+        repo.mkdir()
+        git("init", "-q", "-b", "main")
+        git("commit", "-q", "--allow-empty", "-m", "a")
+        on_main = git("rev-parse", "HEAD")
+        git("update-ref", "refs/remotes/origin/main", on_main)
+        git("commit", "-q", "--allow-empty", "-m", "fork")
+        off_main = git("rev-parse", "HEAD")
+        # A tag named origin/main would win over the branch for a short ref; the check must not take it.
+        git("tag", "origin/main", off_main)
+
+        def check(head, sha):
+            git("checkout", "-q", "--detach", head)
+            return self.run_step("refuse an infra-config commit", {"WORKFLOW_SHA": sha, **env}, cwd=tmp)
+
+        self.assertEqual(check(on_main, on_main).returncode, 0)
+        self.assertEqual(check(on_main, off_main).returncode, 1)  # not what was asked for
+        self.assertEqual(check(off_main, off_main).returncode, 1)  # not on main
+        self.assertEqual(check(on_main, "").returncode, 1)
+
+    def test_guards_run_first_and_cannot_be_skipped(self):
+        names = [st.get("name", st.get("uses", st.get("run", ""))) for st in self.steps]
+        self.assertTrue(names[0].startswith("refuse a run that is not"), names)
+        checkout = next(i for i, st in enumerate(self.steps)
+                        if st.get("with", {}).get("repository") == "quirq-ai/infra-config")
+        commit = names.index(self.step("refuse an infra-config commit")["name"])
+        python = next(i for i, st in enumerate(self.steps) if "python" in str(st.get("run", "")))
+        self.assertLess(checkout, commit)
+        self.assertLess(commit, python)
+        self.assertEqual(self.job["if"], "github.repository != 'quirq-ai/infra-config'")
+        self.assertNotIn("continue-on-error", self.job)
+        for st in self.steps:
+            self.assertNotIn("continue-on-error", st, st)
+            self.assertNotIn("if", st, st)
+        for prefix in ("refuse a run that is not", "refuse an infra-config commit"):
+            self.assertEqual(self.step(prefix)["env"]["WORKFLOW_SHA"], "${{ github.workflow_sha }}")
+        self.assertEqual(self.step("refuse a run that is not")["env"]["WORKFLOW_REF"], "${{ github.workflow_ref }}")
+        self.assertEqual(self.steps[checkout]["with"]["ref"], "${{ github.workflow_sha }}")
+        self.assertEqual(self.steps[checkout]["with"]["fetch-depth"], 0)
+
+    def test_installs_only_hashed_pyyaml(self):
+        # Audit R2: nothing unpinned or unhashed runs inside the required check.
+        installs = [st["run"] for st in self.steps if "pip" in str(st.get("run", ""))]
+        self.assertEqual(len(installs), 1, installs)
+        for flag in ("--require-hashes", "--no-deps", "--only-binary :all:", "-r infra-config/requirements-drift.txt"):
+            self.assertIn(flag, installs[0])
+        lines = [l.strip() for l in (ROOT / "requirements-drift.txt").read_text().splitlines()
+                 if l.strip() and not l.lstrip().startswith("#")]
+        self.assertEqual(lines[0], "pyyaml==6.0.3 \\")
+        self.assertTrue(all(re.fullmatch(r"--hash=sha256:[0-9a-f]{64}( \\)?", l) for l in lines[1:]), lines)
+
+    def test_check_delivered_needs_nothing_but_pyyaml(self):
+        dest = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, dest)
+        qqcfg.deliver(qqcfg.load(ROOT), "innernet", dest)
+        code = ("import sys; sys.modules.update(jsonschema=None, referencing=None); "
+                f"sys.path.insert(0, {str(ROOT / 'tools')!r}); import qqcfg; "
+                f"sys.exit(qqcfg.main(['check-delivered', 'innernet', {str(dest)!r}]))")
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 if __name__ == "__main__":
