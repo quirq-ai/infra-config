@@ -715,6 +715,8 @@ class DriftWorkflow(unittest.TestCase):
         repo.mkdir()
         git("init", "-q", "-b", "main")
         git("commit", "-q", "--allow-empty", "-m", "a")
+        older = git("rev-parse", "HEAD")
+        git("commit", "-q", "--allow-empty", "-m", "b")
         on_main = git("rev-parse", "HEAD")
         git("update-ref", "refs/remotes/origin/main", on_main)
         git("commit", "-q", "--allow-empty", "-m", "fork")
@@ -728,6 +730,7 @@ class DriftWorkflow(unittest.TestCase):
 
         self.assertEqual(check(on_main, on_main).returncode, 0)
         self.assertEqual(check(on_main, off_main).returncode, 1)  # not what was asked for
+        self.assertEqual(check(on_main, older).returncode, 1)  # not what was asked for, though on main
         self.assertEqual(check(off_main, off_main).returncode, 1)  # not on main
         self.assertEqual(check(on_main, "").returncode, 1)
 
@@ -766,9 +769,15 @@ class DriftWorkflow(unittest.TestCase):
         dest = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, dest)
         qqcfg.deliver(qqcfg.load(ROOT), "innernet", dest)
+        env = {"PATH": "/usr/bin:/bin", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
+               "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        for args in (["init", "-q", "-b", "main"], ["commit", "-q", "--allow-empty", "-m", "base"],
+                     ["add", "-A"], ["commit", "-q", "-m", "deliver"]):
+            subprocess.run(["git", "-C", str(dest), *args], env=env, check=True, capture_output=True)
+        # The workflow's own arguments, --history included, with jsonschema unimportable.
+        argv = ["check-delivered", "innernet", str(dest), "--base", "main", "--base-sha", "", "--history"]
         code = ("import sys; sys.modules.update(jsonschema=None, referencing=None); "
-                f"sys.path.insert(0, {str(ROOT / 'tools')!r}); import qqcfg; "
-                f"sys.exit(qqcfg.main(['check-delivered', 'innernet', {str(dest)!r}]))")
+                f"sys.path.insert(0, {str(ROOT / 'tools')!r}); import qqcfg; sys.exit(qqcfg.main({argv!r}))")
         r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
