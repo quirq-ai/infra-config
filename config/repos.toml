@@ -20,11 +20,17 @@ kinds = ["python-service", "pytest"]
 manifest = "infra/repo.toml"   # not created yet (P1)
 channels = ["canary", "dev", "stable"]
 owners = []              # suraj fills in
-other_qq_workflows = ["qq-roll-land.yml"]   # delivered by quirq-ai/rollers (V0-ROL-02), not qqcfg
 [repo.deploy]
 target = "installer-channel"   # install.sh and the in-app updater follow a channel ref (P5); today they follow main
 # xo-space runs Python 3.12 today (Dockerfile, tests.yml); moving to the org pin is P1 work.
 # It also publishes a container image to ghcr; containers stay out of scope until later.
+# qq-*.yml files another quirq tool delivers (not qqcfg). qq-drift requires each to match its digest
+# (sha256 of the file's bytes) when present, so a reviewed product PR cannot weaken it unnoticed;
+# its owner bumps the digest here when it redelivers.
+[[repo.other_qq_workflows]]
+file = "qq-roll-land.yml"
+from = "quirq-ai/rollers"   # V0-ROL-02; xo-space #213
+sha256 = "09b5717d9e3ef106f2865f91150a764841a23a68cfa31803c51b97ae9dd48b8e"
 
 [[repo]]
 name = "innernet"
@@ -36,6 +42,9 @@ kinds = ["node-app"]
 manifest = "infra/repo.toml"   # not created yet (P1)
 channels = ["canary", "dev", "stable"]
 owners = []              # suraj fills in
-other_qq_workflows = ["qq-roll-land.yml"]   # delivered by quirq-ai/rollers (V0-ROL-02), not qqcfg
 [repo.deploy]
 target = "vercel"        # TODO(expert): verify Vercel (only a .vercelignore hints).
+[[repo.other_qq_workflows]]
+file = "qq-roll-land.yml"
+from = "quirq-ai/rollers"   # V0-ROL-02; innernet #38 at b97ece3, not merged yet
+sha256 = "8d1c88623631ee5ddcd48803013c7688e0cbb12c4892321faf26fea19ac3cf4f"

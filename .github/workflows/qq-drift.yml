@@ -4,6 +4,9 @@
 # renamed or deleted qq-*.yml stub fails it (V0-CFG-02). Repos with nothing delivered pass, and so
 # do PRs into other branches than the repo's default. While a PR leaves the qq-* files alone, stubs
 # main generated within pipelines.toml drift_grace_days still pass, with a warning to redeliver.
+# It runs qqcfg and reads config from the infra-config commit the ruleset pins (github.workflow_sha),
+# never from whatever main is at run time (audit F2): a change here takes effect when gate moves the
+# pin, so merge infra-config, have gate repin, then redeliver. Actions are pinned by commit.
 name: qq-drift
 on:
   pull_request:
@@ -20,23 +23,31 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - name: refuse a run that is not this file from quirq-ai/infra-config
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          case "$WORKFLOW_REF" in
+            quirq-ai/infra-config/.github/workflows/qq-drift.yml@*) ;;
+            *) echo "::error::qq-drift must run from quirq-ai/infra-config, not $WORKFLOW_REF"; exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           path: target
           fetch-depth: 0        # the base commit too, to see whether the change edits qq-* files
           persist-credentials: false
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: quirq-ai/infra-config
-          ref: main
+          ref: ${{ github.workflow_sha }}   # the pinned commit; a SHA from elsewhere fails to check out
           path: infra-config
           fetch-depth: 0        # --history reads stubs main generated within drift_grace_days
           persist-credentials: false
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.14"
       - run: python -m pip install --quiet -r infra-config/requirements.txt
-      - name: compare delivered stubs with infra-config main
+      - name: compare delivered stubs with the pinned infra-config
         env:
           REPO: ${{ github.event.repository.name }}
           # Stubs live on the default branch only; PRs into other branches (xo-space's development) pass.
