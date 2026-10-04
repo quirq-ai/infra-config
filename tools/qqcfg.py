@@ -195,6 +195,10 @@ def check_refs(root: Path, cfg: dict, err) -> None:
             err(f"{where}: unknown channel {b['channel']!r}")
         if b.get("blocking") and b.get("timeout_minutes", defaults["timeout_minutes"]) > max_minutes:
             err(f"{where}: a blocking builder may not run longer than gate admission max_minutes ({max_minutes})")
+        if (b.get("generate") and b["pipeline"] == "presubmit"
+                and b.get("timeout_minutes", defaults["timeout_minutes"]) > REQUIRED_MAX_MINUTES):
+            err(f"{where}: its org-required copy may not run longer than {REQUIRED_MAX_MINUTES} minutes"
+                " (gate's pinned presubmit rulesets refuse it)")
 
     for r in repos:
         mine = [b for b in builders if b["repo"] == r]
@@ -401,6 +405,9 @@ def q(s: str) -> str:
 
 
 REQUIRED = "qq-required-"  # org-required copies of presubmit builders, in this repo's own .github/workflows
+# Gate's pinned presubmit org rulesets (gate #13) refuse a required workflow with a concurrency group
+# or a job over 40 minutes. render() never emits concurrency for the copies; validate checks the cap.
+REQUIRED_MAX_MINUTES = 40
 
 
 def render(cfg: dict, required: bool = False) -> dict[str, str]:
