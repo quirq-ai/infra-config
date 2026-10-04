@@ -10,6 +10,9 @@ permissions:
   contents: read
 jobs:
   qq-drift:
+    # Nothing is delivered to infra-config, and its own PRs test check-delivered in validate's unit
+    # tests. Running here would also use main's qqcfg, which predates a PR's changes.
+    if: github.repository != 'quirq-ai/infra-config'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
