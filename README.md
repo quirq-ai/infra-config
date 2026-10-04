@@ -108,7 +108,7 @@ read first).
 | `org` | seed | Isolated runners for trusted work; OIDC trust for each deploy target; mapping Launchpad onto the backend seam. |
 | `kinds` | seed | Recipes adapters for `python-service`, `pytest`, `node-app` and `static-docs` that replace the `interim` commands; github provisioning for node. |
 | `repos` | seed | Each repo's own `infra/repo.toml` (with `sync`); moving xo-space from Python 3.12 to the org pin; confirming innernet's deploy target. |
-| `pipelines` | seed | The canary builders, once release has an executor (V0-REL-03); switching steps from `interim` commands to recipes adapters; a gate-side check that delivered stubs match this repo. |
+| `pipelines` | seed | Switching steps from `interim` commands to recipes adapters; a gate-side check that delivered stubs match this repo. |
 | `gate` | seed | Making the change classes machine-checkable; the gate check app; tree closers. suraj applies the GitHub settings (merge queue, required checks). |
 | `flakes` | seed | Exoneration thresholds and enforcing quarantine expiry (v1). test-pipelines reads `[verdict]` in v0. |
 | `auto_revert` | seed | A gardener that stays within the caps and lands reverts only in `auto_land_repos` (empty in v0, so it proposes); whether deploy failures get their own budget. |
@@ -184,7 +184,7 @@ Where the plan left a choice open, I picked the simplest well-known option:
   generator change doesn't turn open product PRs red before redelivery; a PR that edits them must
   match `main` exactly. PRs into other branches than the default pass. A PR cannot edit
   it, because it lives here. Each stub
-  also carries a `# qq-digest:` line and a fast in-repo drift step. Post-submit builders also run on `workflow_dispatch` with a `commit` input, so the gardener can backfill main commits a batched push skipped (V0-GAR-01); such a run's check shows on the branch tip, so find it by its run name (`<builder> <commit>`), not by the tip's checks. Each repo's merge-queue builder ends with gate's timing step (V0-GAT-04). Canary builders follow once release has an executor. Steps are interim commands in
+  also carries a `# qq-digest:` line and a fast in-repo drift step. Post-submit builders also run on `workflow_dispatch` with a `commit` input, so the gardener can backfill main commits a batched push skipped (V0-GAR-01); such a run's check shows on the branch tip, so find it by its run name (`<builder> <commit>`), not by the tip's checks. Each repo's merge-queue builder ends with gate's timing step (V0-GAT-04). Canary builders are `generate = false`: the canary will run in quirq-ai/release (V0-REL-03/04), not in the product repos. Steps are interim commands in
   `kinds.toml` until the recipes adapters exist (V0-REC-02, V0-REC-03); they pass locally against
   xo-space `c3cea98` (Python 3.14.8) and innernet `da9b84c` (pnpm install, typecheck, build). The
   xo-space stub checks less than its own `tests.yml`, which stays a required check until the repo's
@@ -200,7 +200,7 @@ Where the plan left a choice open, I picked the simplest well-known option:
 marked `TODO(suraj, v0)`. `validate` also lists every empty `owners` list and rotation, and whether the
 compute ceiling is set. The ones for suraj:
 
-- **v0:** the hour of the daily canary deploy (`channels.toml`)
+- **v0:** the hour of the daily canary deploy (`channels.toml`; release's planned canary workflow will repeat it)
 - **v0:** whether the cap of 10 keeps counting reverts created, the default, or counts only auto-landed
   ones (`auto_revert.toml`)
 - whether an agent may roll stable back on its own when a health signal breaches (`channels.toml`)

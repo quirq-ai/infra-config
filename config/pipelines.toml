@@ -72,8 +72,8 @@ channel = "canary"
 kinds = ["python-service"]
 capabilities = ["deploy"]   # moves the canary channel ref that the installer will follow
 pool = "trusted"
-# Not generated yet: the canary workflow runs the release executor (V0-REL-02, V0-REL-03), which
-# does not exist. CFG-02 delivers it once release does.
+generate = false            # never delivered: the canary will run in quirq-ai/release (V0-REL-03/04,
+                            # not built yet), which checks this repo out at lkgr
 
 # --- innernet -------------------------------------------------------------------------------
 
@@ -109,4 +109,4 @@ channel = "canary"
 kinds = ["node-app"]
 capabilities = ["deploy"]
 pool = "trusted"
-# Not generated yet; see xo-space-canary-deploy.
+generate = false            # will run in quirq-ai/release; see xo-space-canary-deploy
