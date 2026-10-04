@@ -23,14 +23,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      # tests/test_qqcfg.py runs these guard scripts; keep each one a self-contained bash script.
       - name: refuse a run that is not this file from quirq-ai/infra-config
         env:
           WORKFLOW_REF: ${{ github.workflow_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
           case "$WORKFLOW_REF" in
             quirq-ai/infra-config/.github/workflows/qq-drift.yml@*) ;;
             *) echo "::error::qq-drift must run from quirq-ai/infra-config, not $WORKFLOW_REF"; exit 1 ;;
           esac
+          # An empty SHA would make checkout take main at run time (audit R1, case C).
+          if ! [[ "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::qq-drift needs a full commit SHA for its pinned infra-config, not '$WORKFLOW_SHA'"; exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           path: target
@@ -46,7 +52,24 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.14"
-      - run: python -m pip install --quiet -r infra-config/requirements.txt
+      - name: refuse an infra-config commit that is not the pin, or not on infra-config main
+        env:
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        # A commit fetched from elsewhere in the fork network is not on main (audit R1, case D).
+        # refs/remotes/ in full, so a tag named origin/main cannot stand in for the branch.
+        run: |
+          head=$(git -C infra-config rev-parse HEAD)
+          if [ "$head" != "$WORKFLOW_SHA" ]; then
+            echo "::error::checked out infra-config $head, not the pinned $WORKFLOW_SHA"; exit 1
+          fi
+          if ! git -C infra-config merge-base --is-ancestor "$head" refs/remotes/origin/main; then
+            echo "::error::infra-config $head is not on quirq-ai/infra-config main"; exit 1
+          fi
+      # PyYAML alone, hash-checked, no dependencies and no source builds: nothing unpinned runs
+      # inside the required check (audit R2). check-delivered needs nothing else.
+      - run: >-
+          python -m pip install --quiet --require-hashes --no-deps --only-binary :all:
+          -r infra-config/requirements-drift.txt
       - name: compare delivered stubs with the pinned infra-config
         env:
           REPO: ${{ github.event.repository.name }}
