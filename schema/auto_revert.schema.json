@@ -10,7 +10,7 @@
     "policy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["daily_cap", "window_hours", "require_culprit_verification", "only_clean_reverts", "notify"],
+      "required": ["daily_cap", "window_hours", "require_culprit_verification", "only_clean_reverts", "notify", "auto_land_repos"],
       "properties": {
         "daily_cap": {"type": "integer", "minimum": 0},
         "window_hours": {"type": "integer", "minimum": 1},
@@ -21,6 +21,12 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": {"enum": ["culprit-author", "gardener", "owner"]}
+        },
+        "auto_land_repos": {
+          "description": "Repos (repos.toml names) where the gardener may land reverts; empty means propose only.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
         }
       }
     },

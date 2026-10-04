@@ -259,6 +259,10 @@ def check_refs(root: Path, cfg: dict, err) -> None:
         if e not in events:
             err(f"gate: tree_status closes_on {e!r} is not a postmortem.toml trigger event")
 
+    for r in cfg["auto_revert"]["policy"]["auto_land_repos"]:
+        if r not in repos:
+            err(f"auto_revert: auto_land_repos names unknown repo {r!r} (see repos.toml)")
+
 
 def check_policy(cfg: dict, err) -> int:
     """Settled policy. Returns the number of invariants checked."""

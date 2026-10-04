@@ -77,6 +77,10 @@ class BadChangesFail(unittest.TestCase):
         self.edit("config/auto_revert.toml", "submit_daily_limit = 0", "submit_daily_limit = 2")
         self.assertFails("test_failure submit_daily_limit")
 
+    def test_auto_land_repos_must_be_known_repos(self):
+        self.edit("config/auto_revert.toml", "auto_land_repos = []", 'auto_land_repos = ["nope"]')
+        self.assertFails("auto_land_repos names unknown repo 'nope'")
+
     def test_unknown_kind_rejected(self):
         self.edit("config/repos.toml", 'kinds = ["node-app"]', 'kinds = ["rust-app"]')
         self.assertFails("unknown kind 'rust-app'")
