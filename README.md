@@ -189,7 +189,7 @@ Where the plan left a choice open, I picked the simplest well-known option:
   xo-space `c3cea98` (Python 3.14.8) and innernet `da9b84c` (pnpm install, typecheck, build). The
   xo-space stub checks less than its own `tests.yml`, which stays a required check until the repo's
   manifest targets cover the rest.
-- **Squash merges**, because xo-space already uses them. **Dependabot** for ecosystem rolls (the
+- **Squash merges** for every repo (suraj, 2026-10-04). **Dependabot** for ecosystem rolls (the
   plan lists it as an option). **GitHub Issues** for postmortem and fuzz tracking. **Atheris**
   (Python) and **Jazzer.js** (JS/TS) as fuzz engines, because neither needs containers. Cron
   schedules are in UTC.
@@ -206,7 +206,6 @@ compute ceiling is set. The ones for suraj:
 - whether an agent may roll stable back on its own when a health signal breaches (`channels.toml`)
 - the stable target of every two weeks, each promotion still his to approve (`channels.toml`)
 - **v0:** the monthly CI compute ceiling (`org.toml`)
-- **v0:** squash merges for every repo (`gate.toml`)
 - the PostHog host and projects (`health.toml`)
 - **v0:** the owners of every area and repo, and the members of every rotation
 

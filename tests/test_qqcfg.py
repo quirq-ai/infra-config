@@ -44,7 +44,7 @@ class BadChangesFail(unittest.TestCase):
         self.assertFails("does not match")
 
     def test_mistagged_todo_rejected(self):
-        self.edit("config/gate.toml", "TODO(suraj, v0)", "TODO(suraj, V0)")
+        self.edit("config/org.toml", "TODO(suraj, v0)", "TODO(suraj, V0)")
         self.assertFails("--todos never lists it")
 
     def test_result_globs_stay_inside_the_workspace(self):
