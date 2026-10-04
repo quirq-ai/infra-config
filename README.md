@@ -53,6 +53,7 @@ infra-config/
 │   ├── health.toml         health signals (PostHog and CI) that gate promotion
 │   └── perf.toml           benchmarks and alert thresholds
 ├── schema/                 JSON Schema (draft 2020-12): area.schema.json plus one per area
+├── templates/              files config points at (postmortem.md)
 ├── tools/qqcfg.py          validate + generate (the lucicfg counterpart)
 ├── generated/github/       generated output for the github backend; never edit by hand
 ├── tests/test_qqcfg.py     the validator's own tests
@@ -70,18 +71,18 @@ read first).
 
 | Area | Status | What the expert owns next |
 |---|---|---|
-| `org` | stub | Isolated runners for trusted work; OIDC trust for each deploy target; mapping Launchpad onto the backend seam. |
+| `org` | seed | Isolated runners for trusted work; OIDC trust for each deploy target; mapping Launchpad onto the backend seam. |
 | `kinds` | seed | Recipes adapters for `python-service`, `pytest`, `node-app` and `static-docs` that replace the `interim` commands; github provisioning for node. |
 | `repos` | seed | Each repo's own `infra/repo.toml` (with `sync`); moving xo-space from Python 3.12 to the org pin; confirming innernet's deploy target. |
 | `pipelines` | seed | Generating every builder, not just the one example; getting generated workflows into product repos. |
 | `gate` | seed | Making the change classes machine-checkable; the gate check app; tree closers. suraj applies the GitHub settings (merge queue, required checks). |
-| `flakes` | stub | Results store, exoneration thresholds, and enforcing quarantine expiry. |
+| `flakes` | seed | Exoneration thresholds and enforcing quarantine expiry (v1). test-pipelines reads `[verdict]` in v0. |
 | `auto_revert` | seed | A gardener that stays within the caps; whether deploy failures get their own budget. |
-| `rollers` | stub | A Python lockfile for xo-space, Dependabot config, and the toolchain roller. |
+| `rollers` | seed | A Python lockfile for xo-space. rollers generates Dependabot config from the `dependabot` rollers and runs the toolchain roller. |
 | `channels` | seed | Who advances `lkgr`; what a channel and a rollout percentage mean for each deploy target; rollback. |
-| `fuzz` | stub | Fuzz harnesses (neither repo has any), orchestration, and corpus storage. |
-| `postmortem` | stub | The template, where postmortems live, and grouping failures into recurring classes. |
-| `health` | stub | Wiring PostHog into each repo (neither sends events today), event names, and xo-space telemetry consent. |
+| `fuzz` | seed | v0 runs time-boxed property tests in the gate and the canary's fuzz smoke. Fuzz harnesses, orchestration and corpus storage are v1 (schedules marked `phase = "v1"`). |
+| `postmortem` | seed | Grouping failures into recurring classes (v1). The template is `templates/postmortem.md`, and postmortems live in their tracker issue. |
+| `health` | seed | v0 uses CI signals and canary probes only. Wiring PostHog into each repo, event names and xo-space telemetry consent are v1 (signals marked `phase = "v1"`). |
 | `perf` | stub | Benchmark hardware, noise control, and routing alerts to bisection. |
 
 Not declared yet, because their phase has not started: hermetic toolchain images (`toolchains`,
