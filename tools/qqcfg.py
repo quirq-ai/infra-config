@@ -154,6 +154,9 @@ def check_refs(root: Path, cfg: dict, err) -> None:
         err("health: posthog secret_scope is not an org.toml secret_scope")
 
     chan_names = [c["name"] for c in chans]
+    for k in kinds.values():
+        if "test_reports" in k and "test" not in k.get("interim", {}):
+            err(f"kinds: {k['name']}: test_reports without an interim test command that writes them")
     for r in repos.values():
         for k in r["kinds"]:
             if k not in kinds:
@@ -344,6 +347,17 @@ sys.exit(1 if bad else 0)
 PY"""
 
 
+# Writes a one-testcase JUnit report from a step's outcome ($OUTCOME). {path} and {case} come from
+# config names (schema-restricted to [a-z0-9-]), so they need no XML or shell escaping.
+ONE_CASE_REPORT = """mkdir -p "$(dirname {path})"
+if [ "$OUTCOME" = success ]; then
+  body=''
+else
+  body="<failure message=\\"step outcome: $OUTCOME\\"/>"
+fi
+printf '<?xml version="1.0" encoding="UTF-8"?>\\n<testsuite name="qq" tests="1"><testcase classname="qq" name="{case}">%s</testcase></testsuite>\\n' "$body" > {path}"""
+
+
 def with_digest(text: str) -> str:
     """Put the body's sha256 on line 3, after the two header comments. The drift check strips it again."""
     lines = text.splitlines(keepends=True)
@@ -377,7 +391,7 @@ def render(cfg: dict) -> dict[str, str]:
             ran = False
             for k in b["kinds"]:
                 if cap in kinds[k]["capabilities"] and cap in kinds[k].get("interim", {}):
-                    steps.append((f"{cap} ({k})", kinds[k]["interim"][cap]))
+                    steps.append((cap, k, kinds[k]["interim"][cap]))
                     ran = True
             if not ran:
                 raise ConfigError(f"{where}: no interim command for {cap!r} in kinds {b['kinds']}")
@@ -412,13 +426,32 @@ def render(cfg: dict) -> dict[str, str]:
         if b["pipeline"] in GENERATABLE:
             lines += ['      - name: "qq drift check (generated workflows not hand-edited)"', "        run: |",
                       *("          " + line for line in DRIFT_CHECK.splitlines())]
-        for name, cmd in steps:
-            lines += [f"      - name: {q(name)}", f"        run: {q(cmd)}"]
-        if "test" in b["capabilities"]:
+        reports = []
+        for cap, k, cmd in steps:
+            lines.append(f"      - name: {q(f'{cap} ({k})')}")
+            if cap == "test" and "test_reports" not in kinds[k]:
+                lines.append(f"        id: {q(f'qq-test-{k}')}")
+            lines.append(f"        run: {q(cmd)}")
+        for cap, k, _ in steps:
+            if cap != "test":
+                continue
+            if "test_reports" in kinds[k]:
+                reports += kinds[k]["test_reports"]
+                continue
+            # A test command with no JUnit output (a typecheck, say) gets a one-case report from its
+            # own outcome, so the run is stored as pass or fail, not as "no results" (audit S5).
+            path = f"results/qq/{k}.xml"
+            reports.append(path)
+            lines += [f"      - name: {q(f'qq test report ({k})')}",
+                      f"        if: always() && steps.qq-test-{k}.outcome != 'skipped'",
+                      "        env:", f"          OUTCOME: ${{{{ steps.qq-test-{k}.outcome }}}}",
+                      "        run: |", *("          " + line for line in ONE_CASE_REPORT.format(
+                          path=path, case=f"test ({k})").splitlines())]
+        if reports:
             # V0-TST-01: store this run's test results even when a test step failed.
-            res = defaults["results"]
-            lines += ['      - name: "qq result sink"', "        if: always()", f"        uses: {res['sink']}",
-                      "        with:", "          junit: |", *(f"            {g}" for g in res["junit"])]
+            lines += ['      - name: "qq result sink"', "        if: always()",
+                      f"        uses: {defaults['results']['sink']}",
+                      "        with:", "          junit: |", *(f"            {g}" for g in dict.fromkeys(reports))]
         out[f"github/{b['repo']}/qq-{b['name']}.yml"] = with_digest("\n".join(lines) + "\n")
     return out
 
