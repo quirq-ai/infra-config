@@ -38,7 +38,7 @@ version_input = "node-version"
 [[kind]]
 name = "python-service"
 phase = "year-one"
-capabilities = ["fetch", "build", "run", "deploy"]
+capabilities = ["fetch", "build", "run", "deploy", "bench"]
 toolchain = "python"
 [kind.interim]
 fetch = "python -m pip install --quiet -r requirements.txt"
@@ -56,7 +56,7 @@ test = "python -m pytest -q -p no:cacheprovider --junitxml=results/junit.xml"
 [[kind]]
 name = "node-app"        # Next.js apps managed with pnpm
 phase = "year-one"
-capabilities = ["fetch", "build", "test", "run", "deploy"]
+capabilities = ["fetch", "build", "test", "run", "deploy", "bench"]
 toolchain = "node"
 [kind.interim]           # checked against innernet da9b84c on 2026-10-04 (install, typecheck, build pass)
 fetch = "npm install --global pnpm@10 && pnpm install --frozen-lockfile"   # TODO(expert): pin pnpm with the node toolchain (V0-TCH-02).
