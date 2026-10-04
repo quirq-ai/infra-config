@@ -10,11 +10,12 @@
     "defaults": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["backend", "timeout_minutes", "drift_grace_days", "results"],
+      "required": ["backend", "timeout_minutes", "drift_grace_days", "timing", "results"],
       "properties": {
         "backend": {"$ref": "area.schema.json#/$defs/name"},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 360},
         "drift_grace_days": {"type": "integer", "minimum": 0, "maximum": 14},
+        "timing": {"type": "string", "pattern": "^[\\w.-]+/[\\w.-]+(/[\\w./-]+)?@[0-9a-f]{40}$"},
         "results": {
           "type": "object",
           "additionalProperties": false,

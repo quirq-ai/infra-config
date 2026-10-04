@@ -37,7 +37,7 @@ class BadChangesFail(unittest.TestCase):
         self.assertTrue(any(needle in e for e in errors), f"expected {needle!r} in {errors}")
 
     def test_result_sink_must_be_pinned_by_commit(self):
-        self.edit("config/pipelines.toml", "sink@03dfc5d926aea1183e41ca8fc22c3937468739f6", "sink@main")
+        self.edit("config/pipelines.toml", "sink@1a54cc25766ea0ba9de99a0f3a7f94c68de28c0d", "sink@main")
         self.assertFails("does not match")
 
     def test_mistagged_todo_rejected(self):
@@ -55,6 +55,11 @@ class BadChangesFail(unittest.TestCase):
         self.edit("config/kinds.toml", 'name = "node-app"', 'name = "node-app"\ntest_reports = ["out.xml"]')
         self.edit("config/kinds.toml", 'test = "pnpm typecheck"', '#')
         self.assertFails("test_reports without an interim test command")
+
+    def test_one_queue_builder_per_repo(self):
+        self.edit("config/pipelines.toml", 'pipeline = "postsubmit"', 'pipeline = "presubmit"')
+        self.edit("config/pipelines.toml", 'triggers = ["land"]', 'triggers = ["queue"]')
+        self.assertFails("several generated queue builders")
 
     def test_agent_cannot_promote_to_stable(self):
         self.edit("config/channels.toml", 'approval = "policy-owner"   # suraj', 'approval = "none"')
@@ -285,10 +290,49 @@ class Delivery(unittest.TestCase):
             self.assertEqual("<failure" in out.read_text(), failed, outcome)
 
     def test_postsubmit_has_no_concurrency_group(self):
-        # A group keeps one pending run, so bursty landings would drop post-submit verdicts.
+        # A group keeps one pending run, so bursty landings (or a repeated backfill) would drop verdicts.
         import yaml
         doc = yaml.safe_load(qqcfg.render(self.cfg)["github/xo-space/qq-xo-space-postsubmit.yml"])
         self.assertNotIn("concurrency", doc)
+
+    def test_postsubmit_can_be_dispatched_for_a_commit(self):
+        # V0-GAR-01: the gardener backfills main commits a batched push skipped.
+        import yaml
+        for repo in ("xo-space", "innernet"):
+            doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{repo}/qq-{repo}-postsubmit.yml"])
+            on = doc[True]  # YAML 1.1 reads the key `on` as true
+            self.assertTrue(on["workflow_dispatch"]["inputs"]["commit"]["required"])
+            self.assertEqual(doc["run-name"], f"{repo}-postsubmit ${{{{ inputs.commit || github.sha }}}}")
+            steps = doc["jobs"][f"{repo}-postsubmit"]["steps"]
+            self.assertEqual(steps[0]["name"], "qq backfill commit check")
+            self.assertEqual(steps[1]["with"]["ref"], "${{ inputs.commit || github.sha }}")
+            sink = next(st for st in steps if st.get("name") == "qq result sink")
+            self.assertEqual((sink["if"], sink["with"]["commit"], sink["with"]["kind"]),
+                             ("always()", "${{ inputs.commit || github.sha }}", "postsubmit"))
+
+    def test_backfill_check_rejects_a_short_or_odd_commit(self):
+        script = qqcfg.BACKFILL_CHECK.format(branch="main")
+        for bad in ("abc123", "main", "$(id)", "A" * 40):
+            r = subprocess.run(["bash", "-c", script], env={"COMMIT": bad, "PATH": "/usr/bin:/bin"},
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 1, bad)
+            self.assertIn("full 40-character SHA", r.stdout, bad)
+
+    def test_only_queue_builders_get_the_gate_timing_step(self):
+        import yaml
+        timing = self.cfg["pipelines"]["defaults"]["timing"]
+        for b in self.cfg["pipelines"]["builder"]:
+            if not b.get("generate"):
+                continue
+            doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{b['repo']}/qq-{b['name']}.yml"])
+            steps = next(iter(doc["jobs"].values()))["steps"]
+            got = [st for st in steps if st.get("uses") == timing]
+            if "queue" in b["triggers"]:
+                self.assertEqual([st["if"] for st in got], ["always() && github.event_name == 'merge_group'"], b["name"])
+                self.assertEqual(doc["permissions"], {"contents": "read", "pull-requests": "read"})
+            else:
+                self.assertEqual(got, [], b["name"])
+                self.assertEqual(doc["permissions"], {"contents": "read"})
 
     def test_check_delivered_passes_a_fresh_delivery(self):
         for repo in ("xo-space", "innernet"):

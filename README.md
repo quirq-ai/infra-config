@@ -182,7 +182,7 @@ Where the plan left a choice open, I picked the simplest well-known option:
   generator change doesn't turn open product PRs red before redelivery; a PR that edits them must
   match `main` exactly. PRs into other branches than the default pass. A PR cannot edit
   it, because it lives here. Each stub
-  also carries a `# qq-digest:` line and a fast in-repo drift step. Canary builders follow once release has an executor. Steps are interim commands in
+  also carries a `# qq-digest:` line and a fast in-repo drift step. Post-submit builders also run on `workflow_dispatch` with a `commit` input, so the gardener can backfill main commits a batched push skipped (V0-GAR-01); such a run's check shows on the branch tip, so find it by its run name (`<builder> <commit>`), not by the tip's checks. Each repo's merge-queue builder ends with gate's timing step (V0-GAT-04). Canary builders follow once release has an executor. Steps are interim commands in
   `kinds.toml` until the recipes adapters exist (V0-REC-02, V0-REC-03); they pass locally against
   xo-space `c3cea98` (Python 3.14.8) and innernet `da9b84c` (pnpm install, typecheck, build). The
   xo-space stub checks less than its own `tests.yml`, which stays a required check until the repo's
