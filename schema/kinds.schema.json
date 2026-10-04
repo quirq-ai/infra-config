@@ -47,6 +47,11 @@
             "items": {"$ref": "#/$defs/capability"}
           },
           "toolchain": {"$ref": "area.schema.json#/$defs/name"},
+          "test_reports": {
+            "description": "JUnit XML globs the interim test command writes, relative to the workspace.",
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^(?!.*(^|/)\\.\\.(/|$))[^\\s/][^\\s]*$"}
+          },
           "interim": {
             "type": "object",
             "propertyNames": {"$ref": "#/$defs/capability"},

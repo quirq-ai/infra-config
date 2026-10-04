@@ -17,10 +17,9 @@
         "results": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["sink", "junit"],
+          "required": ["sink"],
           "properties": {
-            "sink": {"type": "string", "pattern": "^[\\w.-]+/[\\w.-]+(/[\\w./-]+)?@[0-9a-f]{40}$"},
-            "junit": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^(?!.*(^|/)\\.\\.(/|$))[^\\s/][^\\s]*$"}}
+            "sink": {"type": "string", "pattern": "^[\\w.-]+/[\\w.-]+(/[\\w./-]+)?@[0-9a-f]{40}$"}
           }
         }
       }

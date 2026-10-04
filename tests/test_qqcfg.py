@@ -47,9 +47,14 @@ class BadChangesFail(unittest.TestCase):
     def test_result_globs_stay_inside_the_workspace(self):
         for bad in ("/tmp/*.xml", "../x/*.xml", "results/../../x.xml", " results/*.xml"):
             with self.subTest(bad=bad):
-                self.edit("config/pipelines.toml", 'junit = ["results/**/*.xml"]', f"junit = [{bad!r}]")
+                self.edit("config/kinds.toml", 'test_reports = ["results/junit.xml"]', f"test_reports = [{bad!r}]")
                 self.assertFails("does not match")
                 self.setUp()
+
+    def test_test_reports_need_a_test_command(self):
+        self.edit("config/kinds.toml", 'name = "node-app"', 'name = "node-app"\ntest_reports = ["out.xml"]')
+        self.edit("config/kinds.toml", 'test = "pnpm typecheck"', '#')
+        self.assertFails("test_reports without an interim test command")
 
     def test_agent_cannot_promote_to_stable(self):
         self.edit("config/channels.toml", 'approval = "policy-owner"   # suraj', 'approval = "none"')
@@ -255,9 +260,29 @@ class Delivery(unittest.TestCase):
             last = next(iter(doc["jobs"].values()))["steps"][-1]
             if "test" in b["capabilities"]:
                 self.assertEqual((last.get("uses"), last.get("if")), (sink, "always()"), b["name"])
-                self.assertEqual(last["with"]["junit"].split(), ["results/**/*.xml"])
+                kinds = qqcfg.by_name(self.cfg["kinds"]["kind"])
+                want = [g for k in b["kinds"] if "test" in kinds[k].get("interim", {})
+                        for g in kinds[k].get("test_reports", [f"results/qq/{k}.xml"])]
+                self.assertEqual(last["with"]["junit"].split(), want, b["name"])
             else:
                 self.assertNotEqual(last.get("uses"), sink, b["name"])
+
+    def test_test_without_junit_gets_a_one_case_report(self):
+        # Audit S5: a typecheck writes no JUnit, so its outcome becomes the report, not "no results".
+        import yaml
+        doc = yaml.safe_load(qqcfg.render(self.cfg)["github/innernet/qq-innernet-presubmit.yml"])
+        steps = doc["jobs"]["innernet-presubmit"]["steps"]
+        test = next(s for s in steps if s.get("name") == "test (node-app)")
+        report = next(s for s in steps if s.get("name") == "qq test report (node-app)")
+        self.assertEqual(test["id"], "qq-test-node-app")
+        self.assertIn("steps.qq-test-node-app.outcome == 'success'", report["if"])
+        self.assertNotIn("cancelled", report["if"])  # a superseded run is not a test failure
+        self.assertEqual(report["env"]["OUTCOME"], "${{ steps.qq-test-node-app.outcome }}")
+        for outcome, failed in (("success", False), ("failure", True)):
+            out = self.dest / "results/qq/node-app.xml"
+            subprocess.run(["bash", "-c", report["run"]], cwd=self.dest, env={"OUTCOME": outcome, "PATH": "/usr/bin:/bin"},
+                           check=True)
+            self.assertEqual("<failure" in out.read_text(), failed, outcome)
 
     def test_postsubmit_has_no_concurrency_group(self):
         # A group keeps one pending run, so bursty landings would drop post-submit verdicts.
