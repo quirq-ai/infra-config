@@ -10,10 +10,11 @@
     "defaults": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["backend", "timeout_minutes", "results"],
+      "required": ["backend", "timeout_minutes", "drift_grace_days", "results"],
       "properties": {
         "backend": {"$ref": "area.schema.json#/$defs/name"},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 360},
+        "drift_grace_days": {"type": "integer", "minimum": 0, "maximum": 14},
         "results": {
           "type": "object",
           "additionalProperties": false,
