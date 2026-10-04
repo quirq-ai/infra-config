@@ -36,6 +36,10 @@ class BadChangesFail(unittest.TestCase):
         errors, _ = qqcfg.validate(self.tmp)
         self.assertTrue(any(needle in e for e in errors), f"expected {needle!r} in {errors}")
 
+    def test_mistagged_todo_rejected(self):
+        self.edit("config/gate.toml", "TODO(suraj, v0)", "TODO(suraj, V0)")
+        self.assertFails("--todos never lists it")
+
     def test_agent_cannot_promote_to_stable(self):
         self.edit("config/channels.toml", 'approval = "policy-owner"   # suraj', 'approval = "none"')
         self.assertFails("promotion to stable needs the policy-owner")
@@ -159,6 +163,28 @@ class BadChangesFail(unittest.TestCase):
     def test_dependabot_roller_needs_an_ecosystem(self):
         self.edit("config/rollers.toml", 'ecosystem = "pip"               # Dependabot package-ecosystem\n', "")
         self.assertFails("'ecosystem' is a required property")
+
+
+
+class Readers(unittest.TestCase):
+    def setUp(self):
+        self.cfg = qqcfg.load(ROOT)
+
+    def test_get_reads_a_dotted_key(self):
+        self.assertIsInstance(qqcfg.get(self.cfg, "org", "budget.monthly_ci_usd"), (int, float))
+
+    def test_get_finds_array_items_by_name(self):
+        self.assertEqual(qqcfg.get(self.cfg, "channels", "channel.canary.audience"), ["agents"])
+
+    def test_get_reports_a_missing_key(self):
+        with self.assertRaisesRegex(qqcfg.ConfigError, "org.budget.nope: not found"):
+            qqcfg.get(self.cfg, "org", "budget.nope")
+
+    def test_unowned_lists_rotations(self):
+        self.assertIn("rotations", qqcfg.unowned(self.cfg))
+
+    def test_v0_todos_are_marked(self):
+        self.assertTrue(any("TODO(suraj, v0)" in t for t in qqcfg.todos(ROOT)))
 
 
 class Delivery(unittest.TestCase):

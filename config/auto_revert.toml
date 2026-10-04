@@ -15,7 +15,7 @@ chromium = "LUCI Bisection; infra/config/luci-bisection.cfg"
 
 [policy]
 daily_cap = 10                        # reverts created (proposed or landed), all repos and failure types together
-# TODO(suraj): keep the default that the cap of 10 counts reverts created, or count only auto-landed ones (plan §10.3 O2).
+# TODO(suraj, v0): keep the default that the cap of 10 counts reverts created, or count only auto-landed ones (plan §10.3 O2).
 window_hours = 24                     # may not be shorter: the cap is per day
 require_culprit_verification = true   # rerun with and without the suspect, as LUCI does
 only_clean_reverts = true             # a revert that needs conflict resolution is a normal change

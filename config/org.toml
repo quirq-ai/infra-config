@@ -59,7 +59,7 @@ mechanism = "token"           # read-only; health signals observe, they never ac
 # TODO(expert): where the PostHog read key is stored and rotated.
 
 [budget]
-monthly_ci_usd = 0            # TODO(suraj): set the monthly CI compute ceiling (plan §10 #9). 0 means not set.
+monthly_ci_usd = 0            # TODO(suraj, v0): set the monthly CI compute ceiling (plan §10 #9). 0 means not set.
 
 # The thirteen quirq infra repos (plan §5.5), one job each. Settled: all public (D2), all built as v0
 # base versions (D3). suraj created them on 2026-10-04 (V0-ORG-01). `wave` is the v0 start order, 1 to 4,
