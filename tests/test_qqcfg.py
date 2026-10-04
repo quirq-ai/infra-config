@@ -132,13 +132,13 @@ class BadChangesFail(unittest.TestCase):
         self.assertFails("org-required copy may not run longer than gate admission max_minutes (40)")
 
     def test_other_qq_workflow_may_not_shadow_a_stub(self):
-        self.edit("config/repos.toml", 'other_qq_workflows = ["qq-roll-land.yml"]',
-                  'other_qq_workflows = ["qq-roll-land.yml", "qq-xo-space-presubmit.yml"]')
+        self.edit("config/repos.toml", 'file = "qq-roll-land.yml"\nfrom = "quirq-ai/rollers"   # V0-ROL-02; xo-space',
+                  'file = "qq-xo-space-presubmit.yml"\nfrom = "quirq-ai/rollers"   # V0-ROL-02; xo-space')
         self.assertFails("is a generated builder's stub")
 
     def test_other_qq_workflow_may_not_shadow_a_required_copy(self):
-        self.edit("config/repos.toml", 'other_qq_workflows = ["qq-roll-land.yml"]',
-                  'other_qq_workflows = ["qq-roll-land.yml", "qq-required-xo-space-presubmit.yml"]')
+        self.edit("config/repos.toml", 'file = "qq-roll-land.yml"\nfrom = "quirq-ai/rollers"   # V0-ROL-02; xo-space',
+                  'file = "qq-required-xo-space-presubmit.yml"\nfrom = "quirq-ai/rollers"   # V0-ROL-02; xo-space')
         self.assertFails("is a generated builder's stub")
 
     def test_hand_edited_generated_file_rejected(self):
@@ -282,18 +282,58 @@ class Delivery(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("was edited by hand", result.stdout)
 
+    def _with_roll_land(self, text):
+        # A config whose xo-space other_qq_workflows entry records the digest of `text`.
+        import copy, hashlib
+        cfg = copy.deepcopy(self.cfg)
+        entry = next(o for o in qqcfg.by_name(cfg["repos"]["repo"])["xo-space"]["other_qq_workflows"]
+                     if o["file"] == "qq-roll-land.yml")
+        entry["sha256"] = hashlib.sha256(text.encode()).hexdigest()
+        roll = self.dest / ".github/workflows/qq-roll-land.yml"
+        roll.parent.mkdir(parents=True, exist_ok=True)
+        roll.write_text(text)
+        return cfg, roll
+
     def test_other_tools_qq_workflows_are_left_alone(self):
         # rollers delivers qq-roll-land.yml (V0-ROL-02); deliver must not delete it, nor qq-drift flag it.
-        roll = self.dest / ".github/workflows/qq-roll-land.yml"
-        roll.parent.mkdir(parents=True)
-        roll.write_text("name: qq roll land\non: pull_request\njobs:\n  land:\n    runs-on: ubuntu-24.04\n    steps: []\n")
-        self.assertNotIn("removed .github/workflows/qq-roll-land.yml", qqcfg.deliver(self.cfg, "xo-space", self.dest))
+        body = "name: qq roll land\non: pull_request\njobs:\n  land:\n    runs-on: ubuntu-24.04\n    steps: []\n"
+        cfg, roll = self._with_roll_land(body)
+        self.assertNotIn("removed .github/workflows/qq-roll-land.yml", qqcfg.deliver(cfg, "xo-space", self.dest))
         self.assertTrue(roll.exists())
-        self.assertEqual(qqcfg.check_delivered(self.cfg, "xo-space", self.dest), [])
-        # It still may not take a generated builder's check name.
-        roll.write_text(roll.read_text().replace("  land:\n", "  xo-space-presubmit:\n"))
+        self.assertEqual(qqcfg.check_delivered(cfg, "xo-space", self.dest), [])
+        # Absent is fine (not delivered yet).
+        roll.unlink()
+        self.assertEqual(qqcfg.check_delivered(cfg, "xo-space", self.dest), [])
+
+    def test_other_qq_workflow_must_match_its_digest(self):
+        # Audit F1: a reviewed product PR may not weaken another tool's workflow unnoticed.
+        body = "name: qq roll land\non: pull_request\njobs:\n  land:\n    runs-on: ubuntu-24.04\n    steps: []\n"
+        cfg, roll = self._with_roll_land(body)
+        qqcfg.deliver(cfg, "xo-space", self.dest)
+        roll.write_text(body.replace("steps: []", "steps: [{run: 'true'}]"))
+        self.assertTrue(any("qq-roll-land.yml: differs from the digest" in e
+                            for e in qqcfg.check_delivered(cfg, "xo-space", self.dest)))
+
+    def test_other_qq_workflow_still_may_not_take_a_check_name(self):
+        body = "name: x\non: pull_request\njobs:\n  xo-space-presubmit:\n    runs-on: ubuntu-24.04\n    steps: []\n"
+        cfg, _ = self._with_roll_land(body)  # even with a matching digest
+        qqcfg.deliver(cfg, "xo-space", self.dest)
         self.assertTrue(any("only its generated stub may define" in e
+                            for e in qqcfg.check_delivered(cfg, "xo-space", self.dest)))
+
+    def test_symlinked_workflows_are_refused(self):
+        # Audit F3: never read or write through a symlink.
+        import os
+        qqcfg.deliver(self.cfg, "xo-space", self.dest)
+        wf = self.dest / ".github/workflows"
+        outside = self.dest / "elsewhere.yml"
+        outside.write_text("name: x\non: push\njobs: {}\n")
+        os.symlink(outside, wf / "extra.yml")
+        self.assertTrue(any("extra.yml: is a symlink" in e
                             for e in qqcfg.check_delivered(self.cfg, "xo-space", self.dest)))
+        os.symlink(outside, wf / "qq-old.yml")
+        with self.assertRaises(qqcfg.ConfigError):
+            qqcfg.deliver(self.cfg, "xo-space", self.dest)
 
     def test_listing_is_exact_and_never_covers_a_qqcfg_stub(self):
         qqcfg.deliver(self.cfg, "xo-space", self.dest)
@@ -435,6 +475,16 @@ class Delivery(unittest.TestCase):
                          if st.get("uses") not in extra and not st.get("name", "").startswith("qq test report")]
             self.assertEqual(runs, stub_runs, b["name"])
             self.assertFalse(any("sink" in str(st.get("uses")) or "timing" in str(st.get("uses")) for st in job["steps"]))
+
+    def test_this_repos_workflows_pin_actions_and_qq_drift_pins_its_config(self):
+        # Audit F2: qq-drift runs qqcfg from the commit its ruleset pins, not from main at run time.
+        import re
+        for p in (ROOT / ".github/workflows").glob("*.yml"):
+            for ref in re.findall(r"uses: (\S+)", p.read_text()):
+                self.assertRegex(ref, r"@[0-9a-f]{40}$", p.name)
+        drift = (ROOT / ".github/workflows/qq-drift.yml").read_text()
+        self.assertIn("ref: ${{ github.workflow_sha }}", drift)
+        self.assertNotIn("ref: main", drift)
 
     def test_generated_actions_are_pinned_by_commit(self):
         import re

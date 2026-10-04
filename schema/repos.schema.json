@@ -40,9 +40,17 @@
           "owners": {"$ref": "area.schema.json#/$defs/people"},
           "other_qq_workflows": {
             "type": "array",
-            "uniqueItems": true,
-            "items": {"type": "string", "pattern": "^qq-[a-z0-9-]+\\.yml$"},
-            "description": "qq-*.yml workflows another quirq tool delivers into this repo (for example rollers' qq-roll-land.yml). qqcfg deliver leaves them alone and qq-drift does not count them as stale stubs; they still may not define a generated builder's check."
+            "description": "qq-*.yml workflows another quirq tool delivers into this repo (for example rollers' qq-roll-land.yml). qqcfg deliver leaves them alone; qq-drift requires each, when present, to match sha256 and never to define a generated builder's check.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["file", "from", "sha256"],
+              "properties": {
+                "file": {"type": "string", "pattern": "^qq-[a-z0-9-]+\\.yml$"},
+                "from": {"type": "string", "pattern": "^quirq-ai/[A-Za-z0-9._-]+$"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+              }
+            }
           },
           "deploy": {
             "type": "object",
