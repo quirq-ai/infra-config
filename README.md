@@ -158,8 +158,8 @@ Where the plan left a choice open, I picked the simplest well-known option:
 
 ## Open decisions
 
-`python3 tools/qqcfg.py validate --todos` lists all of them; those v0 needs are marked
-`TODO(suraj, v0)`. `validate` also lists every empty `owners` list and rotation, and whether the
+`python3 tools/qqcfg.py validate --todos` lists all of them; the config values v0 needs are
+marked `TODO(suraj, v0)`. `validate` also lists every empty `owners` list and rotation, and whether the
 compute ceiling is set. The ones for suraj:
 
 - **v0:** the hour of the daily canary deploy (`channels.toml`)

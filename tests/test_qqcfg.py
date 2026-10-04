@@ -36,6 +36,10 @@ class BadChangesFail(unittest.TestCase):
         errors, _ = qqcfg.validate(self.tmp)
         self.assertTrue(any(needle in e for e in errors), f"expected {needle!r} in {errors}")
 
+    def test_mistagged_todo_rejected(self):
+        self.edit("config/gate.toml", "TODO(suraj, v0)", "TODO(suraj, V0)")
+        self.assertFails("--todos never lists it")
+
     def test_agent_cannot_promote_to_stable(self):
         self.edit("config/channels.toml", 'approval = "policy-owner"   # suraj', 'approval = "none"')
         self.assertFails("promotion to stable needs the policy-owner")

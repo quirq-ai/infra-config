@@ -565,7 +565,11 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
     budget = cfg["org"]["budget"]["monthly_ci_usd"]
     report.append(f"note  budget     monthly CI ceiling {'not set (V0-ORG-04)' if not budget else f'${budget:g}'}")
     found = todos(root)
-    v0 = sum(", v0)" in t for t in found)
+    v0 = sum(TODO_RE.search(t).group(2) == "v0" for t in found)
+    for path in sorted((root / "config").glob("*.toml")):
+        for n, line in enumerate(path.read_text().splitlines(), 1):
+            if re.search(r"TODO\([^)]*\):", line) and not TODO_RE.search(line):
+                errors.append(f"config/{path.name}:{n}: write TODO(suraj|expert[, vN]): text, or --todos never lists it")
     report.append(f"note  todos      {len(found)} open, {v0} needed for v0 (python3 tools/qqcfg.py validate --todos)")
     return errors, report
 
