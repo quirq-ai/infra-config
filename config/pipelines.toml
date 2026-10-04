@@ -21,6 +21,9 @@ chromium = "try and ci builders in infra/config/subprojects/chromium/*.star, gen
 [defaults]
 backend = "github"            # v0; Launchpad later (org.toml backends)
 timeout_minutes = 30
+# V0-GAT-04: the merge-queue (queue-triggered) builder of each repo ends with gate's timing step,
+# one sample per gate run. Pinned by commit. TODO(expert): let rollers move this pin.
+timing = "quirq-ai/gate/timing@ce01a4b15f3a7a99d9895c5607c0ce88af67ea5a"
 
 # V0-TST-01: every generated builder that runs tests ends with the result sink, so each gate and
 # post-submit run's results are stored (the results store collects the qq-results-* artifacts,

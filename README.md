@@ -146,7 +146,7 @@ Where the plan left a choice open, I picked the simplest well-known option:
   `.github/workflows/qq-drift.yml` here, run as an organization-required workflow in every product
   repo: it fails a PR whose `qq-*.yml` stubs differ from infra-config `main`, are renamed or missing,
   or whose own workflows define a generated job. A PR cannot edit it, because it lives here. Each stub
-  also carries a `# qq-digest:` line and a fast in-repo drift step. Canary builders follow once release has an executor. Steps are interim commands in
+  also carries a `# qq-digest:` line and a fast in-repo drift step. Post-submit builders also run on `workflow_dispatch` with a `commit` input, so the gardener can backfill main commits a batched push skipped (V0-GAR-01), and each repo's merge-queue builder ends with gate's timing step (V0-GAT-04). Canary builders follow once release has an executor. Steps are interim commands in
   `kinds.toml` until the recipes adapters exist (V0-REC-02, V0-REC-03); they pass locally against
   xo-space `c3cea98` (Python 3.14.8) and innernet `da9b84c` (pnpm install, typecheck, build). The
   xo-space stub checks less than its own `tests.yml`, which stays a required check until the repo's

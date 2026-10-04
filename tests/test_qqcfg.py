@@ -56,6 +56,11 @@ class BadChangesFail(unittest.TestCase):
         self.edit("config/kinds.toml", 'test = "pnpm typecheck"', '#')
         self.assertFails("test_reports without an interim test command")
 
+    def test_one_queue_builder_per_repo(self):
+        self.edit("config/pipelines.toml", 'pipeline = "postsubmit"', 'pipeline = "presubmit"')
+        self.edit("config/pipelines.toml", 'triggers = ["land"]', 'triggers = ["queue"]')
+        self.assertFails("several generated queue builders")
+
     def test_agent_cannot_promote_to_stable(self):
         self.edit("config/channels.toml", 'approval = "policy-owner"   # suraj', 'approval = "none"')
         self.assertFails("promotion to stable needs the policy-owner")
@@ -259,7 +264,8 @@ class Delivery(unittest.TestCase):
             doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{b['repo']}/qq-{b['name']}.yml"])
             last = next(iter(doc["jobs"].values()))["steps"][-1]
             if "test" in b["capabilities"]:
-                self.assertEqual((last.get("uses"), last.get("if")), (sink, "always()"), b["name"])
+                want_if = "always() && github.event_name != 'workflow_dispatch'" if b["pipeline"] == "postsubmit" else "always()"
+                self.assertEqual((last.get("uses"), last.get("if")), (sink, want_if), b["name"])
                 kinds = qqcfg.by_name(self.cfg["kinds"]["kind"])
                 want = [g for k in b["kinds"] if "test" in kinds[k].get("interim", {})
                         for g in kinds[k].get("test_reports", [f"results/qq/{k}.xml"])]
@@ -284,11 +290,50 @@ class Delivery(unittest.TestCase):
                            check=True)
             self.assertEqual("<failure" in out.read_text(), failed, outcome)
 
-    def test_postsubmit_has_no_concurrency_group(self):
-        # A group keeps one pending run, so bursty landings would drop post-submit verdicts.
+    def test_postsubmit_groups_by_commit_and_never_cancels(self):
+        # A group keyed by ref keeps one pending run, so bursty landings would drop verdicts.
         import yaml
         doc = yaml.safe_load(qqcfg.render(self.cfg)["github/xo-space/qq-xo-space-postsubmit.yml"])
-        self.assertNotIn("concurrency", doc)
+        self.assertEqual(doc["concurrency"], {"group": "qq-xo-space-postsubmit-${{ inputs.commit || github.sha }}",
+                                              "cancel-in-progress": False})
+
+    def test_postsubmit_can_be_dispatched_for_a_commit(self):
+        # V0-GAR-01: the gardener backfills main commits a batched push skipped.
+        import yaml
+        for repo in ("xo-space", "innernet"):
+            doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{repo}/qq-{repo}-postsubmit.yml"])
+            on = doc[True]  # YAML 1.1 reads the key `on` as true
+            self.assertTrue(on["workflow_dispatch"]["inputs"]["commit"]["required"])
+            self.assertEqual(doc["run-name"], f"{repo}-postsubmit ${{{{ inputs.commit || github.sha }}}}")
+            steps = doc["jobs"][f"{repo}-postsubmit"]["steps"]
+            self.assertEqual(steps[0]["name"], "qq backfill commit check")
+            self.assertEqual(steps[1]["with"]["ref"], "${{ inputs.commit || github.sha }}")
+            sink = next(st for st in steps if st.get("name") == "qq result sink")
+            self.assertIn("github.event_name != 'workflow_dispatch'", sink["if"])
+
+    def test_backfill_check_rejects_a_short_or_odd_commit(self):
+        script = qqcfg.BACKFILL_CHECK.format(branch="main")
+        for bad in ("abc123", "main", "$(id)", "A" * 40):
+            r = subprocess.run(["bash", "-c", script], env={"COMMIT": bad, "PATH": "/usr/bin:/bin"},
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 1, bad)
+            self.assertIn("full 40-character SHA", r.stdout, bad)
+
+    def test_only_queue_builders_get_the_gate_timing_step(self):
+        import yaml
+        timing = self.cfg["pipelines"]["defaults"]["timing"]
+        for b in self.cfg["pipelines"]["builder"]:
+            if not b.get("generate"):
+                continue
+            doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{b['repo']}/qq-{b['name']}.yml"])
+            steps = next(iter(doc["jobs"].values()))["steps"]
+            got = [st for st in steps if st.get("uses") == timing]
+            if "queue" in b["triggers"]:
+                self.assertEqual([st["if"] for st in got], ["github.event_name == 'merge_group'"], b["name"])
+                self.assertEqual(doc["permissions"], {"contents": "read", "pull-requests": "read"})
+            else:
+                self.assertEqual(got, [], b["name"])
+                self.assertEqual(doc["permissions"], {"contents": "read"})
 
     def test_check_delivered_passes_a_fresh_delivery(self):
         for repo in ("xo-space", "innernet"):
