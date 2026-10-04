@@ -22,6 +22,9 @@ class BadChangesFail(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         for d in ("config", "schema", "generated", "templates"):
             shutil.copytree(ROOT / d, self.tmp / d)
+        (self.tmp / ".github/workflows").mkdir(parents=True)
+        for f in (ROOT / ".github/workflows").glob("qq-required-*"):
+            shutil.copy(f, self.tmp / ".github/workflows")
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
@@ -85,6 +88,17 @@ class BadChangesFail(unittest.TestCase):
         self.edit("config/auto_revert.toml", "auto_land_repos = []", 'auto_land_repos = ["xo-space"]')
         errors, _ = qqcfg.validate(self.tmp)
         self.assertEqual(errors, [])
+
+    def test_required_workflow_must_match_its_builder(self):
+        path = self.tmp / ".github/workflows/qq-required-innernet-presubmit.yml"
+        path.write_text(path.read_text().replace("pnpm typecheck", "true"))
+        self.assertFails(".github/workflows/qq-required-innernet-presubmit.yml: out of date")
+        path.unlink()
+        self.assertFails(".github/workflows/qq-required-innernet-presubmit.yml: missing")
+
+    def test_stale_required_workflow_fails(self):
+        (self.tmp / ".github/workflows/qq-required-gone-presubmit.yml").write_text("name: x\n")
+        self.assertFails("qq-required-gone-presubmit.yml: stale")
 
     def test_toolchain_action_must_be_pinned_by_commit(self):
         self.edit("config/kinds.toml", "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020", "actions/setup-node@v7")
@@ -344,9 +358,33 @@ class Delivery(unittest.TestCase):
             self.assertEqual(r.returncode, 1, bad)
             self.assertIn("full 40-character SHA", r.stdout, bad)
 
+    def test_required_copies_run_the_presubmit_in_its_repo_only(self):
+        # Rollers audit R-2: an org ruleset pins these by commit, so a product PR can't edit its tests away.
+        import yaml
+        req = qqcfg.render(self.cfg, required=True)
+        stubs = qqcfg.render(self.cfg)
+        d = self.cfg["pipelines"]["defaults"]
+        pre = [b for b in self.cfg["pipelines"]["builder"] if b.get("generate") and b["pipeline"] == "presubmit"]
+        self.assertEqual(sorted(req), sorted(f".github/workflows/qq-required-{b['name']}.yml" for b in pre))
+        for b in pre:
+            doc = yaml.safe_load(req[f".github/workflows/qq-required-{b['name']}.yml"])
+            stub = yaml.safe_load(stubs[f"github/{b['repo']}/qq-{b['name']}.yml"])
+            job = doc["jobs"][f"{b['name']}-pinned"]
+            self.assertEqual(job["if"], f"github.repository == 'quirq-ai/{b['repo']}'")
+            self.assertEqual(doc[True], stub[True])
+            self.assertNotEqual(doc["concurrency"]["group"], stub["concurrency"]["group"])
+            self.assertEqual(doc["permissions"], {"contents": "read"})
+            # Same commands; timing and result storage stay with the stub so nothing is stored twice.
+            runs = [st.get("run") for st in job["steps"]]
+            extra = {d["timing"], d["results"]["sink"]}
+            stub_runs = [st.get("run") for st in next(iter(stub["jobs"].values()))["steps"]
+                         if st.get("uses") not in extra and not st.get("name", "").startswith("qq test report")]
+            self.assertEqual(runs, stub_runs, b["name"])
+            self.assertFalse(any("sink" in str(st.get("uses")) or "timing" in str(st.get("uses")) for st in job["steps"]))
+
     def test_generated_actions_are_pinned_by_commit(self):
         import re
-        for path, text in qqcfg.render(self.cfg).items():
+        for path, text in {**qqcfg.render(self.cfg), **qqcfg.render(self.cfg, required=True)}.items():
             for ref in re.findall(r"uses: (\S+)", text):
                 self.assertRegex(ref, r"@[0-9a-f]{40}$", path)
 
