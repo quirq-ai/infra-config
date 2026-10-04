@@ -8,7 +8,7 @@ name = "fuzz"
 status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
-read_by = ["fuzz runner (not built)"]
+read_by = ["recipes (V0-REC-04 property tests)", "release (V0-REL-03 fuzz smoke)", "fuzz runner (v1)"]
 chromium = "ClusterFuzz and libFuzzer targets"
 
 # Property-test libraries per toolchain, run as ordinary tests by the kind's `test` capability.

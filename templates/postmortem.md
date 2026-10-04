@@ -27,9 +27,9 @@
 
 <What was held, rolled back or reverted; channels and users affected; time main was red.>
 
-## Root cause
+## Root cause and trigger
 
-<The mechanism, with links. Inferred claims are marked as inferred.>
+<The mechanism that failed and what set it off, with links. Inferred claims are marked as inferred.>
 
 ## Record needs
 
@@ -41,6 +41,12 @@ A failure record closes only when all three are linked (postmortem.toml `record_
 
 ## Action items
 
-Each action item links an issue (postmortem.toml `action_items_need_issue`).
+Each action item has an owner and a tracking issue (postmortem.toml `action_items_need_issue`).
 
-- [ ] <action> (<issue link>)
+| Action | Owner | Issue |
+|---|---|---|
+| | | |
+
+## Lessons learned
+
+<What went well, what went badly, and where we got lucky.>

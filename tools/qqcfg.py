@@ -204,6 +204,12 @@ def check_refs(root: Path, cfg: dict, err) -> None:
     for tc in (k for k, v in pt.items() if isinstance(v, str)):
         if tc not in toolchains:
             err(f"fuzz: property_tests library for unknown toolchain {tc!r}")
+    tested = {kinds[k]["toolchain"] for r in repos.values() for k in r["kinds"]
+              if k in kinds and "test" in kinds[k]["capabilities"] and "toolchain" in kinds[k]}
+    for tc in sorted(tested - set(pt)):
+        err(f"fuzz: property_tests names no library for toolchain {tc!r}, which a repo tests with")
+    if pt["gate_minutes"] > pt["canary_minutes"]:
+        err("fuzz: property_tests gate_minutes may not exceed canary_minutes")
     if cfg["fuzz"]["canary_smoke"]["duration_minutes"] < pt["canary_minutes"]:
         err("fuzz: canary_smoke duration_minutes must cover property_tests canary_minutes")
     template = cfg["postmortem"]["policy"]["template"]

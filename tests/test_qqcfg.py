@@ -131,6 +131,14 @@ class BadChangesFail(unittest.TestCase):
         self.edit("config/fuzz.toml", "canary_minutes = 15", "canary_minutes = 30")
         self.assertFails("canary_smoke duration_minutes must cover")
 
+    def test_every_tested_toolchain_has_a_property_test_library(self):
+        self.edit("config/fuzz.toml", 'node = "fast-check"      # MIT\n', "")
+        self.assertFails("names no library for toolchain 'node'")
+
+    def test_property_tests_for_unknown_toolchain_rejected(self):
+        self.edit("config/fuzz.toml", 'node = "fast-check"', 'rust = "proptest"')
+        self.assertFails("property_tests library for unknown toolchain 'rust'")
+
     def test_dependabot_roller_needs_an_ecosystem(self):
         self.edit("config/rollers.toml", 'ecosystem = "pip"               # Dependabot package-ecosystem\n', "")
         self.assertFails("'ecosystem' is a required property")

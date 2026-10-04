@@ -7,7 +7,7 @@ name = "flakes"
 status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
-read_by = ["test-pipelines (P2)", "gate"]
+read_by = ["test-pipelines (V0-TST-03)", "gate"]
 chromium = "ResultDB, LUCI Analysis exoneration (luci-analysis.cfg), retry with and without patch (cq.md)"
 
 [verdict]

@@ -16,12 +16,10 @@
     "canary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["soak_hours", "missing_data", "on_probe_failure", "pause_after_failed_in_row"],
+      "required": ["missing_data", "on_probe_failure"],
       "properties": {
-        "soak_hours": {"type": "number", "minimum": 0},
         "missing_data": {"const": "hold"},
-        "on_probe_failure": {"enum": ["rollback", "hold"]},
-        "pause_after_failed_in_row": {"type": "integer", "minimum": 1}
+        "on_probe_failure": {"enum": ["hold", "rollback"]}
       }
     },
     "probe": {

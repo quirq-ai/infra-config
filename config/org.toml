@@ -1,7 +1,7 @@
 # Org-wide policy: the system's name, execution backends, roles, pools, secret scopes, budget and
 # rotations. Every other area refers to the names defined here.
 # SEED (V0-CFG-03): names, backends, policy-owner, the two pools, the two secret scopes and the three
-# rotations are what v0 runs on. Hardening (isolated runners, OIDC trust per target, Launchpad) is
+# rotations are what v0 runs on: proposed in the skeleton, settled when suraj approves V0-CFG-03. Hardening (isolated runners, OIDC trust per target, Launchpad) is
 # marked TODO(expert). The compute ceiling is suraj's (V0-ORG-04) and rotation members are his.
 
 [area]

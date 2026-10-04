@@ -9,7 +9,7 @@ name = "health"
 status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
-read_by = ["release", "gardener", "scorecard"]
+read_by = ["release (V0-REL-03 probe stage)", "gardener", "scorecard"]
 chromium = "release health checks before a staged rollout widens (inference from plan §3 P8)"
 
 [posthog]
@@ -17,12 +17,12 @@ host = ""                # TODO(suraj): PostHog host, and one project per produc
 secret_scope = "posthog-read"
 # TODO(expert): xo-space runs on users' machines; decide what telemetry it may send, and consent.
 
-# The canary pipeline's probe and soak stages (plan §5.8 stages 6 and 7). Read by release (V0-REL-03).
+# The canary pipeline's probe stage (plan §5.8 stage 6). Read by release (V0-REL-03). v0 holds a bad
+# canary; soak, automatic rollback and the circuit breaker are v1 (plan §1 roadmap, v1.md).
 [canary]
-soak_hours = 2                 # plan §5.8 proposal
 missing_data = "hold"          # no probe results means held, never promoted
-on_probe_failure = "rollback"  # move channels/canary back, then a failure record and a postmortem draft
-pause_after_failed_in_row = 2  # circuit breaker: 2 failed canaries in a row pause the pipeline
+on_probe_failure = "hold"      # v0: the previous canary stays; v1 moves the pointer back ("rollback")
+# v1 proposals, not read in v0: soak 2 h (plan §5.8), pause after 2 failed canaries in a row.
 
 # Scripted checks against the deployed canary, starting with health endpoints. `path` is fetched
 # over HTTP from the canary test environment that recipes' deploy starts (V0-REC-05).

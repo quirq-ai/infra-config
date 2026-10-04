@@ -8,7 +8,7 @@ name = "postmortem"
 status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
-read_by = ["gardener", "release", "scorecard"]
+read_by = ["gardener (V0-GAR-04)", "release (V0-REL-03)", "scorecard"]
 chromium = "none cited in the plan"
 
 [policy]

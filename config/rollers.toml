@@ -8,7 +8,7 @@ name = "rollers"
 status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
-read_by = ["rollers (P4)"]
+read_by = ["rollers (V0-ROL-01, V0-ROL-02)"]
 chromium = "Skia AutoRoll; roll-dep in depot_tools"
 
 [[roller]]
