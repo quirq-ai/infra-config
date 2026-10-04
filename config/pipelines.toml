@@ -26,7 +26,7 @@ timeout_minutes = 30
 drift_grace_days = 7
 # V0-GAT-04: the merge-queue (queue-triggered) builder of each repo ends with gate's timing step,
 # one sample per gate run. Pinned by commit. TODO(expert): let rollers move this pin.
-timing = "quirq-ai/gate/timing@ce01a4b15f3a7a99d9895c5607c0ce88af67ea5a"
+timing = "quirq-ai/gate/timing@7a4fb535d936b51cdcc8b66e8004e5609b4ee6a4"
 
 # V0-TST-01: every generated builder that runs tests ends with the result sink, so each gate and
 # post-submit run's results are stored (the results store collects the qq-results-* artifacts,
