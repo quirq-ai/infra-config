@@ -17,6 +17,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.14"
-      - run: python -m pip install --quiet -r requirements.txt
+      # requirements.txt is a hashed lock (from requirements.in), so nothing unpinned runs here.
+      - run: >-
+          python -m pip install --quiet --require-hashes --no-deps --only-binary :all:
+          -r requirements.txt
       - run: python tools/qqcfg.py validate
       - run: python -m unittest discover -s tests -v

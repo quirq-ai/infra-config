@@ -1,7 +1,9 @@
 # Policy paths need the policy-owner (org.toml [roles]; settled: suraj). The author of a change
 # cannot approve it. Every path is a policy path unless listed at the bottom with no owner.
-# README.md and requirements.txt are deliberately left unowned: docs and dependency rolls may land
-# with a green gate alone (gate.toml change classes). Later lines win.
+# README.md, requirements.in and its hashed lock requirements.txt (validate's own dependencies) are
+# deliberately left unowned: docs and dependency rolls may land with a green gate alone (gate.toml
+# change classes). requirements-drift.txt is what qq-drift runs in every product repo, so it stays
+# a policy path. Later lines win.
 # Area owners go in each config file's [area] owners list, which suraj fills in.
 *               @sharmasuraj0123
 /config/        @sharmasuraj0123
@@ -12,4 +14,5 @@
 /.github/       @sharmasuraj0123
 /AGENTS.md      @sharmasuraj0123
 /README.md
+/requirements.in
 /requirements.txt
