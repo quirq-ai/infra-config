@@ -1,5 +1,6 @@
 # Toolchains and target kinds, with the capabilities each kind implements (plan §5.2).
-# A kind resolves to an adapter in quirq-ai/recipes, which does not exist yet. A missing
+# A kind resolves to an adapter in quirq-ai/recipes (contract and loader: V0-REC-01). Capabilities are
+# recipes' list: fetch, build, test, package, run, deploy, bench and fuzz. A missing
 # capability is a declared state, not an error: a docs site has no `test`.
 # Settled year-one stack: the latest Python and the latest Next.js. Containers come later.
 
@@ -25,7 +26,9 @@ version_input = "python-version"
 name = "node"
 track = "lts"            # for the latest Next.js (16.3.8 on npm, 2026-10-03)
 pin = "24"               # current Node LTS on nodejs.org, 2026-10-03
-# TODO(expert): github provisioning for node, when a node-app builder is generated.
+[toolchain.github]
+uses = "actions/setup-node@v7"
+version_input = "node-version"
 # TODO(expert): hermetic pins by digest (plan P3) once containers are in scope.
 
 # --- kinds -----------------------------------------------------------------------------------
@@ -55,6 +58,10 @@ name = "node-app"        # Next.js apps managed with pnpm
 phase = "year-one"
 capabilities = ["fetch", "build", "test", "run", "deploy"]
 toolchain = "node"
+[kind.interim]           # checked against innernet da9b84c on 2026-10-04 (install, typecheck, build pass)
+fetch = "npm install --global pnpm@10 && pnpm install --frozen-lockfile"   # TODO(expert): pin pnpm with the node toolchain (V0-TCH-02).
+build = "pnpm build"
+test = "pnpm typecheck"  # innernet has no tests yet; typecheck stands in until it does
 
 [[kind]]
 name = "static-docs"
