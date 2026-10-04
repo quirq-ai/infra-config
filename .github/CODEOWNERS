@@ -1,18 +1,16 @@
-# Policy paths need the policy-owner (org.toml [roles]; settled: suraj). The author of a change
-# cannot approve it. Every path is a policy path unless listed at the bottom with no owner.
-# README.md, requirements.in and its hashed lock requirements.txt (validate's own dependencies) are
-# deliberately left unowned: docs and dependency rolls may land with a green gate alone (gate.toml
-# change classes). requirements-drift.txt is what qq-drift runs in every product repo, so it stays
-# a policy path. Later lines win.
-# Area owners go in each config file's [area] owners list, which suraj fills in.
-*               @sharmasuraj0123
-/config/        @sharmasuraj0123
-/schema/        @sharmasuraj0123
-/tools/         @sharmasuraj0123
-/generated/     @sharmasuraj0123
-/tests/         @sharmasuraj0123
-/.github/       @sharmasuraj0123
-/AGENTS.md      @sharmasuraj0123
-/README.md
-/requirements.in
-/requirements.txt
+# Owners for quirq-ai/infra-config (V0-ORG-02), on the toolchains model: only policy and trust paths
+# are owned, so a change to any path below needs the policy-owner (org.toml [roles]; settled: suraj),
+# and its author cannot approve it. Other paths (README.md, docs/, templates/, .gitignore,
+# requirements.in and its hashed lock requirements.txt) are unowned: they land on green CI and review
+# alone, under gate.toml's change classes. requirements-drift.txt is what qq-drift runs in every
+# product repo, so it stays owned. A new top-level path is unowned until it is listed here.
+# Area owners go in each config file's [area] owners list.
+/config/                 @sharmasuraj0123
+/schema/                 @sharmasuraj0123
+/tools/                  @sharmasuraj0123
+/generated/              @sharmasuraj0123
+/tests/                  @sharmasuraj0123
+/.github/                @sharmasuraj0123
+/AGENTS.md               @sharmasuraj0123
+/LICENSE                 @sharmasuraj0123
+/requirements-drift.txt  @sharmasuraj0123

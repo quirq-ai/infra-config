@@ -14,15 +14,16 @@ nothing; the gate's verdict counts.
 
 ## Who approves what here
 
-Almost everything in this repo is a **policy path** (`.github/CODEOWNERS`), and a policy path
+The policy and trust paths in this repo are owned in `.github/CODEOWNERS`, and an owned path
 needs the policy-owner (suraj):
 
 | You changed | Class | Approval |
 |---|---|---|
-| `config/`, `schema/`, `tools/`, `generated/`, `tests/`, `.github/`, `AGENTS.md`, or any new path | policy | policy-owner (suraj) |
-| `README.md` only | docs | none; an agent may land it alone once the gate is green |
+| `config/`, `schema/`, `tools/`, `generated/`, `tests/`, `.github/`, `AGENTS.md`, `LICENSE`, `requirements-drift.txt` | policy | policy-owner (suraj) |
+| `README.md`, `docs/` or `templates/` Markdown only | docs | none; an agent may land it alone once the gate is green |
 | `requirements.in` / `requirements.txt` pin bump only | dependency-roll | none, if opened by the roller rotation |
 | a clean `git revert` of a landed PR | clean-revert | none |
+| anything else, such as `.gitignore` or a new top-level path | code | an owner other than the author (not enforced by CODEOWNERS until the path is listed there) |
 
 You can never approve your own change. If one PR mixes classes, the strictest class applies. To
 land docs quickly, keep them in their own PR.
