@@ -25,10 +25,10 @@ Who reads it today (checked in each repo's main on 2026-10-04):
 | quirq-ai/recipes (`qqrecipes check-kinds`) | `kinds` |
 | quirq-ai/sync | `kinds` |
 | quirq-ai/test-pipelines (`qqresults`, when given `--infra-config`) | `flakes` |
+| quirq-ai/gardener (`qqgarden`, V0-GAR-03) | `auto_revert` |
 
-No reader yet: `auto_revert`, `channels`, `fuzz`, `health`, `perf` and `postmortem`. Their readers
-come with V0-REL-02/03 (channels, health), V0-GAR-03/04 (auto_revert,
-postmortem), V0-REC-04 (fuzz) and V0-PRF-01 (perf), so V0-CFG-03's "their readers use them" is met
+No reader yet: `channels`, `fuzz`, `health`, `perf` and `postmortem`. Their readers
+come with V0-REL-02/03 (channels, health), V0-GAR-04 (postmortem), V0-REC-04 (fuzz) and V0-PRF-01 (perf), so V0-CFG-03's "their readers use them" is met
 only once those land.
 
 The plan behind this repo is in [docs/plan.md](docs/plan.md), and the 51 v0 work items for all
@@ -213,7 +213,7 @@ compute ceiling is set. The ones for suraj:
 ## How this fits with the other repos
 
 `gate` reads `repos`, `pipelines` and `gate` to decide which checks are required. `gardener`
-reads `auto_revert` and `flakes`. `release` and `installer` read `channels` and `health`.
+reads `auto_revert` (and later `flakes`). `release` and `installer` read `channels` and `health`.
 `rollers` reads `rollers` and moves the pins in `kinds`. Per the plan, `sync` will own the single
 parser library. Until it exists, every reader goes through `qqcfg.load` and writes no parser of
 its own.
