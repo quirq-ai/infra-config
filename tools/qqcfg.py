@@ -203,7 +203,7 @@ def check_refs(root: Path, cfg: dict, err) -> None:
     stub_names = {f"qq-{b['name']}.yml" for b in builders}
     for repo in cfg["repos"]["repo"]:
         for name in repo.get("other_qq_workflows", []):
-            if name in stub_names:
+            if name in stub_names or name.startswith(REQUIRED):
                 err(f"repos: {repo['name']}: other_qq_workflows {name!r} is a generated builder's stub")
     for r in repos:
         mine = [b for b in builders if b["repo"] == r]
