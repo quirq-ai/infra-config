@@ -21,6 +21,9 @@ chromium = "try and ci builders in infra/config/subprojects/chromium/*.star, gen
 [defaults]
 backend = "github"            # v0; Launchpad later (org.toml backends)
 timeout_minutes = 30
+# qq-drift accepts stubs that main generated up to this many days ago (with a warning to redeliver),
+# so a generator change does not turn every open product PR red at once (audit S3).
+drift_grace_days = 7
 
 # V0-TST-01: every generated builder that runs tests ends with the result sink, so each gate and
 # post-submit run's results are stored (the results store collects the qq-results-* artifacts,

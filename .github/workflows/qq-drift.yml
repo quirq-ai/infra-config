@@ -1,7 +1,9 @@
 # Hand-written, like validate.yml. Meant to run as an organization-required workflow (an org
 # ruleset, "Require workflows to pass before merging", pointing at this file on main) in every repo
 # listed in config/repos.toml. A PR in a product repo cannot edit this file, so a hand-edited,
-# renamed or deleted qq-*.yml stub fails it (V0-CFG-02). Repos with nothing delivered pass.
+# renamed or deleted qq-*.yml stub fails it (V0-CFG-02). Repos with nothing delivered pass, and so
+# do PRs into other branches than the repo's default. Stubs main generated within
+# pipelines.toml drift_grace_days still pass, with a warning to redeliver.
 name: qq-drift
 on:
   pull_request:
@@ -25,6 +27,7 @@ jobs:
           repository: quirq-ai/infra-config
           ref: main
           path: infra-config
+          fetch-depth: 0        # --history reads stubs main generated within drift_grace_days
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
@@ -33,4 +36,6 @@ jobs:
       - name: compare delivered stubs with infra-config main
         env:
           REPO: ${{ github.event.repository.name }}
-        run: python infra-config/tools/qqcfg.py check-delivered "$REPO" target
+          # Stubs live on the default branch only; PRs into other branches (xo-space's development) pass.
+          BASE: ${{ github.base_ref || github.event.merge_group.base_ref }}
+        run: python infra-config/tools/qqcfg.py check-delivered "$REPO" target --base "$BASE" --history

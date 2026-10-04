@@ -285,11 +285,63 @@ class Delivery(unittest.TestCase):
         self.assertTrue(any("qq-innernet-presubmit.yml: missing" in e for e in errors), errors)
         self.assertTrue(any("innernet-ci.yaml: not generated" in e for e in errors), errors)
 
-    def test_check_delivered_catches_a_hand_written_job_with_the_check_name(self):
+    def test_check_delivered_catches_a_second_check_with_a_generated_name(self):
+        # Audit S2: any YAML spelling of the job, or another job id carrying the name, is a second check.
+        spoofs = {
+            "plain": "jobs:\n  innernet-presubmit:\n    runs-on: x\n",
+            "quoted": 'jobs:\n  "innernet-presubmit":\n    runs-on: x\n',
+            "comment": "jobs:\n  innernet-presubmit:   # mine\n    runs-on: x\n",
+            "flow": "jobs: {innernet-presubmit: {runs-on: x}}\n",
+            "renamed": "jobs:\n  other:\n    name: innernet-presubmit\n    runs-on: x\n",
+        }
         qqcfg.deliver(self.cfg, "innernet", self.dest)
-        (self.dest / ".github/workflows/fake.yml").write_text("jobs:\n  innernet-presubmit:\n    runs-on: x\n")
-        self.assertTrue(any("defines generated job 'innernet-presubmit'" in e
-                            for e in qqcfg.check_delivered(self.cfg, "innernet", self.dest)))
+        for label, text in spoofs.items():
+            with self.subTest(label):
+                (self.dest / ".github/workflows/fake.yaml").write_text(text)
+                self.assertTrue(any("defines check 'innernet-presubmit'" in e
+                                    for e in qqcfg.check_delivered(self.cfg, "innernet", self.dest)), label)
+
+    def test_check_delivered_rejects_expression_names_and_bad_yaml(self):
+        qqcfg.deliver(self.cfg, "innernet", self.dest)
+        fake = self.dest / ".github/workflows/fake.yml"
+        fake.write_text("jobs:\n  a:\n    name: ${{ format('{0}-presubmit', 'innernet') }}\n")
+        self.assertTrue(any("is an expression" in e for e in qqcfg.check_delivered(self.cfg, "innernet", self.dest)))
+        fake.write_text("jobs: [unclosed\n")
+        self.assertTrue(any("not valid YAML" in e for e in qqcfg.check_delivered(self.cfg, "innernet", self.dest)))
+
+    def test_check_delivered_accepts_an_older_generation_with_a_warning(self):
+        # Audit S3: stubs from an earlier main pass within the grace window, so open PRs stay green.
+        qqcfg.deliver(self.cfg, "innernet", self.dest)
+        wf = self.dest / ".github/workflows"
+        old = {p.name: p.read_text().replace("timeout-minutes: 20", "timeout-minutes: 19") for p in wf.glob("qq-*")}
+        for name, text in old.items():
+            (wf / name).write_text(text)
+        self.assertTrue(qqcfg.check_delivered(self.cfg, "innernet", self.dest))  # not main's, no history
+        warnings = []
+        self.assertEqual(qqcfg.check_delivered(self.cfg, "innernet", self.dest, [old], warnings.append), [])
+        self.assertTrue(any("redeliver" in w for w in warnings))
+        (wf / "qq-innernet-presubmit.yml").write_text("hand edit")  # a mix of neither still fails
+        self.assertTrue(qqcfg.check_delivered(self.cfg, "innernet", self.dest, [old]))
+
+    def test_generations_reads_stubs_that_were_current_in_the_window(self):
+        repo = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, repo)
+        gen = repo / "generated/github/innernet"
+        gen.mkdir(parents=True)
+        git = lambda *a: subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                                        check=True, capture_output=True)
+        git("init", "-q")
+        for text in ("one", "two"):
+            (gen / "qq-innernet-presubmit.yml").write_text(text)
+            git("add", "-A")
+            git("commit", "-qm", text)
+        self.assertEqual(qqcfg.generations(repo, "innernet", 7), [{"qq-innernet-presubmit.yml": "one"}])
+        self.assertEqual(qqcfg.generations(repo, "xo-space", 7), [])
+
+    def test_check_delivered_cli_passes_other_base_branches(self):
+        # Audit S4: stubs live on the default branch only, so a PR into development has none to check.
+        self.assertEqual(qqcfg.main(["check-delivered", "xo-space", str(self.dest), "--base", "development"]), 0)
+        self.assertEqual(qqcfg.main(["check-delivered", "xo-space", str(self.dest), "--base", "refs/heads/main"]), 1)
 
     def test_check_delivered_ignores_repos_with_nothing_delivered(self):
         self.assertEqual(qqcfg.check_delivered(self.cfg, "infra-config", self.dest), [])
