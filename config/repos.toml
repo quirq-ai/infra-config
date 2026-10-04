@@ -29,8 +29,8 @@ target = "installer-channel"   # install.sh and the in-app updater follow a chan
 # its owner bumps the digest here when it redelivers.
 [[repo.other_qq_workflows]]
 file = "qq-roll-land.yml"
-from = "quirq-ai/rollers"   # V0-ROL-02; xo-space #219, from rollers a6e6ed9 (ROL-R6)
-sha256 = "5a3da13cb21960bdce63ff45ac7d7927eb4b03c02c130a020f4fe24909b2ecf7"
+from = "quirq-ai/rollers"   # V0-ROL-02; xo-space #219 at 49b1bac, from rollers f9be218 (ROL-R6, B-R6-1)
+sha256 = "9041a9b8b834380b3781004b7f5b76f995dc51ac98eabd4df2d113629d6f552e"
 
 [[repo]]
 name = "innernet"
@@ -46,5 +46,5 @@ owners = []              # suraj fills in
 target = "vercel"        # TODO(expert): verify Vercel (only a .vercelignore hints).
 [[repo.other_qq_workflows]]
 file = "qq-roll-land.yml"
-from = "quirq-ai/rollers"   # V0-ROL-02; innernet #38 at 8ef3653, from rollers a6e6ed9 (ROL-R6)
-sha256 = "2e7110c455c94e390afd18ad4168c17b671ed09a10f10977135f5bc42c60c612"
+from = "quirq-ai/rollers"   # V0-ROL-02; innernet #38 at 2389035, from rollers f9be218 (ROL-R6, B-R6-1)
+sha256 = "79fdc0427d06ed4015c899a4807e564aa5300b50f87f0912d24eaff548906856"
