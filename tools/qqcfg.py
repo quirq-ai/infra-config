@@ -349,13 +349,14 @@ PY"""
 
 # Writes a one-testcase JUnit report from a step's outcome ($OUTCOME). {path} and {case} come from
 # config names (schema-restricted to [a-z0-9-]), so they need no XML or shell escaping.
-ONE_CASE_REPORT = """mkdir -p "$(dirname {path})"
+ONE_CASE_REPORT = """mkdir -p "$(dirname "{path}")"
 if [ "$OUTCOME" = success ]; then
   body=''
 else
   body="<failure message=\\"step outcome: $OUTCOME\\"/>"
 fi
-printf '<?xml version="1.0" encoding="UTF-8"?>\\n<testsuite name="qq" tests="1"><testcase classname="qq" name="{case}">%s</testcase></testsuite>\\n' "$body" > {path}"""
+printf '<?xml version="1.0" encoding="UTF-8"?>\\n<testsuite name="qq" tests="1"><testcase classname="qq" name="{case}">%s</testcase></testsuite>\\n' "$body" > "{path}"
+"""
 
 
 def with_digest(text: str) -> str:
@@ -439,11 +440,12 @@ def render(cfg: dict) -> dict[str, str]:
                 reports += kinds[k]["test_reports"]
                 continue
             # A test command with no JUnit output (a typecheck, say) gets a one-case report from its
-            # own outcome, so the run is stored as pass or fail, not as "no results" (audit S5).
+            # own outcome, so the run is stored as pass or fail, not as "no results" (audit S5). A
+            # cancelled or skipped test step writes nothing, so it is not counted as a test failure.
             path = f"results/qq/{k}.xml"
             reports.append(path)
             lines += [f"      - name: {q(f'qq test report ({k})')}",
-                      f"        if: always() && steps.qq-test-{k}.outcome != 'skipped'",
+                      f"        if: always() && (steps.qq-test-{k}.outcome == 'success' || steps.qq-test-{k}.outcome == 'failure')",
                       "        env:", f"          OUTCOME: ${{{{ steps.qq-test-{k}.outcome }}}}",
                       "        run: |", *("          " + line for line in ONE_CASE_REPORT.format(
                           path=path, case=f"test ({k})").splitlines())]

@@ -275,7 +275,9 @@ class Delivery(unittest.TestCase):
         test = next(s for s in steps if s.get("name") == "test (node-app)")
         report = next(s for s in steps if s.get("name") == "qq test report (node-app)")
         self.assertEqual(test["id"], "qq-test-node-app")
-        self.assertIn("steps.qq-test-node-app.outcome", report["if"])
+        self.assertIn("steps.qq-test-node-app.outcome == 'success'", report["if"])
+        self.assertNotIn("cancelled", report["if"])  # a superseded run is not a test failure
+        self.assertEqual(report["env"]["OUTCOME"], "${{ steps.qq-test-node-app.outcome }}")
         for outcome, failed in (("success", False), ("failure", True)):
             out = self.dest / "results/qq/node-app.xml"
             subprocess.run(["bash", "-c", report["run"]], cwd=self.dest, env={"OUTCOME": outcome, "PATH": "/usr/bin:/bin"},
