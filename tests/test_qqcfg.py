@@ -40,7 +40,8 @@ class BadChangesFail(unittest.TestCase):
         self.assertTrue(any(needle in e for e in errors), f"expected {needle!r} in {errors}")
 
     def test_result_sink_must_be_pinned_by_commit(self):
-        self.edit("config/pipelines.toml", "sink@1a54cc25766ea0ba9de99a0f3a7f94c68de28c0d", "sink@main")
+        pinned = qqcfg.load(self.tmp)["pipelines"]["defaults"]["results"]["sink"]
+        self.edit("config/pipelines.toml", pinned, pinned.split("@")[0] + "@main")
         self.assertFails("does not match")
 
     def test_mistagged_todo_rejected(self):
