@@ -1,12 +1,35 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/quirq-ai/infra-config/schema/fuzz.schema.json",
-  "title": "fuzz: fuzz schedules (stub)",
+  "title": "fuzz: property tests, canary fuzz smoke and fuzz schedules",
   "type": "object",
   "additionalProperties": false,
-  "required": ["area", "engine", "findings", "schedule"],
+  "required": ["area", "property_tests", "canary_smoke", "engine", "findings", "schedule"],
   "properties": {
     "area": {"$ref": "area.schema.json"},
+    "property_tests": {
+      "type": "object",
+      "required": ["gate_minutes", "max_examples", "canary_minutes"],
+      "properties": {
+        "gate_minutes": {"type": "integer", "minimum": 1, "maximum": 15},
+        "max_examples": {"type": "integer", "minimum": 1},
+        "canary_minutes": {"type": "integer", "minimum": 1, "maximum": 120}
+      },
+      "propertyNames": {"$ref": "area.schema.json#/$defs/name_or_key"},
+      "additionalProperties": {"type": "string", "minLength": 1},
+      "description": "Property-test library per toolchain name (kinds.toml), plus the time boxes."
+    },
+    "canary_smoke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replay_reproducers", "engines", "duration_minutes", "blocking"],
+      "properties": {
+        "replay_reproducers": {"type": "boolean"},
+        "engines": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["property-tests", "coverage-guided"]}},
+        "duration_minutes": {"type": "integer", "minimum": 1, "maximum": 120},
+        "blocking": {"type": "boolean"}
+      }
+    },
     "engine": {
       "type": "object",
       "minProperties": 1,
@@ -26,9 +49,10 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "repo", "mode", "duration_minutes", "pool", "blocking"],
+        "required": ["name", "phase", "repo", "mode", "duration_minutes", "pool", "blocking"],
         "properties": {
           "name": {"$ref": "area.schema.json#/$defs/name"},
+          "phase": {"enum": ["v0", "v1"]},
           "repo": {"$ref": "area.schema.json#/$defs/name"},
           "mode": {"enum": ["code-change", "batch", "prune", "coverage"]},
           "cron": {"$ref": "area.schema.json#/$defs/cron"},

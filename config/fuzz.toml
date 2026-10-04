@@ -1,12 +1,30 @@
-# Fuzz schedules. STUB: neither repo has fuzz targets yet, so nothing runs.
+# Property tests, the canary fuzz smoke and fuzz schedules (plan §5.9).
+# SEED (V0-CFG-03): v0 runs property tests only, time-boxed, in the gate and in the canary's fuzz
+# smoke (V0-REC-04, V0-REL-03). Coverage-guided fuzzing and its schedules are v1 (V1-REL-02):
+# neither repo has fuzz targets yet, so the schedules below have phase = "v1" and nothing runs them.
 
 [area]
 name = "fuzz"
-status = "stub"
+status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
 read_by = ["fuzz runner (not built)"]
 chromium = "ClusterFuzz and libFuzzer targets"
+
+# Property-test libraries per toolchain, run as ordinary tests by the kind's `test` capability.
+[property_tests]
+python = "hypothesis"    # MPL-2.0
+node = "fast-check"      # MIT
+gate_minutes = 5         # time box per gate run, across all property tests of one builder
+max_examples = 100       # per property in the gate; Hypothesis' default
+canary_minutes = 15      # the same tests, longer, in the canary's fuzz smoke
+
+# The canary pipeline's fuzz smoke stage (plan §5.8 stage 4).
+[canary_smoke]
+replay_reproducers = true   # replay every stored crash reproducer first
+engines = ["property-tests"] # v0; V1-REL-02 adds the coverage-guided engines below
+duration_minutes = 20       # whole stage, including property_tests.canary_minutes
+blocking = true             # a failure holds the canary
 
 # Engines per toolchain: the simplest well-known coverage-guided fuzzers, installed as ordinary
 # packages, so they run on any backend without containers.
@@ -23,6 +41,7 @@ label = "fuzz-crash"
 
 [[schedule]]
 name = "xo-space-pr"
+phase = "v1"
 repo = "xo-space"
 mode = "code-change"     # short run on each PR; reports only new crashes
 duration_minutes = 10
@@ -31,6 +50,7 @@ blocking = false         # TODO(expert): when fuzzing may block the gate.
 
 [[schedule]]
 name = "xo-space-batch"
+phase = "v1"
 repo = "xo-space"
 mode = "batch"
 cron = "0 2 * * *"       # daily, UTC
@@ -40,6 +60,7 @@ blocking = false
 
 [[schedule]]
 name = "innernet-batch"
+phase = "v1"
 repo = "innernet"
 mode = "batch"
 cron = "0 3 * * 0"       # weekly, UTC

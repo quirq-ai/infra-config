@@ -1,10 +1,12 @@
 # Health signals that gate promotion and trigger rollback. Observers never act: release and the
 # gardener read these and act through recorded operations.
-# STUB: neither repo sends PostHog events today (checked by grep, 2026-10-03).
+# SEED (V0-CFG-03): v0 uses CI signals and canary probes only. PostHog signals are declared with
+# phase = "v1" (V1-PH-01): neither repo sends PostHog events today (checked by grep, 2026-10-03).
+# A missing signal is not a healthy one: no probe data holds the canary (plan §5.8).
 
 [area]
 name = "health"
-status = "stub"
+status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
 read_by = ["release", "gardener", "scorecard"]
@@ -15,10 +17,36 @@ host = ""                # TODO(suraj): PostHog host, and one project per produc
 secret_scope = "posthog-read"
 # TODO(expert): xo-space runs on users' machines; decide what telemetry it may send, and consent.
 
+# The canary pipeline's probe and soak stages (plan §5.8 stages 6 and 7). Read by release (V0-REL-03).
+[canary]
+soak_hours = 2                 # plan §5.8 proposal
+missing_data = "hold"          # no probe results means held, never promoted
+on_probe_failure = "rollback"  # move channels/canary back, then a failure record and a postmortem draft
+pause_after_failed_in_row = 2  # circuit breaker: 2 failed canaries in a row pause the pipeline
+
+# Scripted checks against the deployed canary, starting with health endpoints. `path` is fetched
+# over HTTP from the canary test environment that recipes' deploy starts (V0-REC-05).
+[[probe]]
+name = "xo-space-health"
+repo = "xo-space"
+path = "/health"               # xo-space already serves it; its Dockerfile HEALTHCHECK calls it
+expect_status = 200
+timeout_seconds = 10
+attempts = 3
+
+[[probe]]
+name = "innernet-home"
+repo = "innernet"
+path = "/"                     # TODO(expert): a real health route for innernet.
+expect_status = 200
+timeout_seconds = 10
+attempts = 3
+
 # compare = "previous-release" or "last-week": max_regression_pct applies
 # compare = "absolute":                         max_value applies
 [[signal]]
 name = "error-rate"
+phase = "v1"
 source = "posthog"
 measure = "$exception events per 1,000 sessions"   # TODO(expert): verify PostHog's event name.
 compare = "previous-release"
@@ -28,6 +56,7 @@ repos = ["xo-space", "innernet"]
 
 [[signal]]
 name = "session-drop"
+phase = "v1"
 source = "posthog"
 measure = "sessions with at least one $pageview"
 compare = "last-week"
@@ -37,6 +66,7 @@ repos = ["innernet"]
 
 [[signal]]
 name = "canary-deploy"
+phase = "v0"
 source = "ci"
 measure = "failed canary deploys"
 compare = "absolute"
@@ -46,9 +76,20 @@ repos = ["xo-space", "innernet"]
 
 [[signal]]
 name = "main-red-minutes"
+phase = "v0"
 source = "ci"
 measure = "minutes from the first red post-submit run to the next green, per week"
 compare = "absolute"
 max_value = 60
 window_hours = 168
+repos = ["xo-space", "innernet"]
+
+[[signal]]
+name = "canary-probe"
+phase = "v0"
+source = "ci"
+measure = "failed probe runs against the deployed canary"
+compare = "absolute"
+max_value = 0
+window_hours = 24
 repos = ["xo-space", "innernet"]

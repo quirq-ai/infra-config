@@ -1,11 +1,12 @@
 # Org-wide policy: the system's name, execution backends, roles, pools, secret scopes, budget and
 # rotations. Every other area refers to the names defined here.
-# STUB: the names, backends and policy-owner are settled; pools, secret scopes, budget and
-# rotations are placeholders for an expert to design.
+# SEED (V0-CFG-03): names, backends, policy-owner, the two pools, the two secret scopes and the three
+# rotations are what v0 runs on. Hardening (isolated runners, OIDC trust per target, Launchpad) is
+# marked TODO(expert). The compute ceiling is suraj's (V0-ORG-04) and rotation members are his.
 
 [area]
 name = "org"
-status = "stub"
+status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
 read_by = ["gate", "gardener", "release", "rollers"]

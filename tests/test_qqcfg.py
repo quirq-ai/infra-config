@@ -19,7 +19,7 @@ class SeedConfig(unittest.TestCase):
 class BadChangesFail(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        for d in ("config", "schema", "generated"):
+        for d in ("config", "schema", "generated", "templates"):
             shutil.copytree(ROOT / d, self.tmp / d)
 
     def tearDown(self):
@@ -109,6 +109,31 @@ class BadChangesFail(unittest.TestCase):
         self.edit("config/pipelines.toml", 'pipeline = "postsubmit"\ntriggers = ["land"]',
                   'pipeline = "postsubmit"\ntriggers = ["land", "change"]')
         self.assertFails("runs PR code")
+
+
+    def test_v0_signals_are_ci_only(self):
+        self.edit("config/health.toml", 'phase = "v1"\nsource = "posthog"', 'phase = "v0"\nsource = "posthog"')
+        self.assertFails("v0 uses CI signals only")
+
+    def test_every_canary_repo_has_a_probe(self):
+        self.edit("config/health.toml", 'repo = "innernet"\npath = "/"', 'repo = "xo-space"\npath = "/"')
+        self.assertFails("repo 'innernet' ships on 'canary' but has no probe")
+
+    def test_missing_probe_data_never_passes(self):
+        self.edit("config/health.toml", 'missing_data = "hold"', 'missing_data = "pass"')
+        self.assertFails("canary/missing_data")
+
+    def test_postmortem_template_must_exist(self):
+        (self.tmp / "templates/postmortem.md").unlink()
+        self.assertFails("template 'templates/postmortem.md' does not exist")
+
+    def test_canary_smoke_covers_property_tests(self):
+        self.edit("config/fuzz.toml", "canary_minutes = 15", "canary_minutes = 30")
+        self.assertFails("canary_smoke duration_minutes must cover")
+
+    def test_dependabot_roller_needs_an_ecosystem(self):
+        self.edit("config/rollers.toml", 'ecosystem = "pip"               # Dependabot package-ecosystem\n', "")
+        self.assertFails("'ecosystem' is a required property")
 
 
 if __name__ == "__main__":

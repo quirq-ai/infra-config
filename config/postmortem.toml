@@ -1,10 +1,11 @@
 # Postmortem policy and failure tracking. Every trigger below opens or updates one tracked record,
 # whether or not a postmortem is written, so recurring failures become visible.
-# STUB: shape and proposed rules only.
+# SEED (V0-CFG-03): v0 triggers and the template. Read by gardener (V0-GAR-04) and release
+# (V0-REL-03). The recurrence rule is a v1 proposal (V1-CFG-04); nothing enforces it in v0.
 
 [area]
 name = "postmortem"
-status = "stub"
+status = "seed"
 schema = "v0"
 owners = []            # suraj fills in
 read_by = ["gardener", "release", "scorecard"]
@@ -19,7 +20,8 @@ reviewed_by = "owner"    # an owner of the affected repo or area
 draft_within_hours = 24  # plan v1 V1-GAR-03: a draft for every canary rollback within 24 h
 action_items_need_issue = true
 record_needs = ["culprit", "fix", "covering-test"]   # a failure record closes only when all are linked (plan §5.10)
-# TODO(expert): the template and where finished postmortems live (issues or a postmortems/ folder).
+template = "templates/postmortem.md"   # path in this repo; a draft is an issue opened from it
+lives_in = "issue"       # finished postmortems stay in their tracker issue, closed when its record_needs are linked
 # TODO(expert): how failure records are grouped into recurring classes and reported.
 
 # A failure class seen twice must end in a new check, not just another postmortem (plan §5.10).
@@ -30,6 +32,7 @@ opens = "close-the-class"   # a work item, done only when one of closed_by lands
 closed_by = ["test", "fuzz-target", "fuzz-corpus-entry", "gate", "health-signal"]
 
 # postmortem = "required"   always write one (agent-drafted, blameless)
+#              "stub"       open one from the template; the owner decides whether to finish it
 #              "track"      record it only
 [[trigger]]
 event = "stable-rollback"
@@ -54,6 +57,10 @@ postmortem = "required"
 [[trigger]]
 event = "canary-deploy-failed"     # every held or rolled-back canary (plan §5.7, §5.10)
 postmortem = "required"
+
+[[trigger]]
+event = "auto-revert"              # every revert the gardener creates (V0-GAR-04)
+postmortem = "stub"
 
 [[trigger]]
 event = "health-signal-breach"
