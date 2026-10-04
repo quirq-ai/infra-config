@@ -27,11 +27,10 @@ drift_grace_days = 7
 
 # V0-TST-01: every generated builder that runs tests ends with the result sink, so each gate and
 # post-submit run's results are stored (the results store collects the qq-results-* artifacts,
-# V0-TST-02). Test steps write JUnit XML under results/; a run with no reports is stored as having
-# no results, never as a pass. Pinned by commit. TODO(expert): let rollers move this pin.
+# V0-TST-02). It reads each kind's test_reports (kinds.toml); a kind without them gets a one-case
+# report from its test step's outcome. Pinned by commit. TODO(expert): let rollers move this pin.
 [defaults.results]
 sink = "quirq-ai/test-pipelines/sink@03dfc5d926aea1183e41ca8fc22c3937468739f6"
-junit = ["results/**/*.xml"]
 
 # --- xo-space -------------------------------------------------------------------------------
 
