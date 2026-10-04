@@ -81,6 +81,11 @@ class BadChangesFail(unittest.TestCase):
         self.edit("config/auto_revert.toml", "auto_land_repos = []", 'auto_land_repos = ["nope"]')
         self.assertFails("auto_land_repos names unknown repo 'nope'")
 
+    def test_auto_land_repos_accepts_a_known_repo(self):
+        self.edit("config/auto_revert.toml", "auto_land_repos = []", 'auto_land_repos = ["xo-space"]')
+        errors, _ = qqcfg.validate(self.tmp)
+        self.assertEqual(errors, [])
+
     def test_unknown_kind_rejected(self):
         self.edit("config/repos.toml", 'kinds = ["node-app"]', 'kinds = ["rust-app"]')
         self.assertFails("unknown kind 'rust-app'")

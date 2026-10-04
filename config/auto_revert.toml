@@ -22,7 +22,8 @@ only_clean_reverts = true             # a revert that needs conflict resolution 
 notify = ["culprit-author", "gardener"]
 # Repos (names from repos.toml) where the gardener may queue its reverts to land (V0-CFG-05). Empty
 # means it only proposes: it opens a revert PR assigned to the policy-owner and never queues it.
-# Empty in v0; suraj merges reverts in xo-space and innernet. Adding a repo is a policy change.
+# Empty in v0: repos.toml lists only xo-space and innernet, and suraj decided (2026-10-04) that he
+# merges their PRs, reverts included. Adding a repo is a policy change.
 auto_land_repos = []
 
 [build_failure]           # LUCI's compile-failure analysis; "build" is the capability that failed

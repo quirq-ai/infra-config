@@ -48,7 +48,7 @@ originals, and changing them needs his approval.
 | V0-ORG-04 budget readable | #4 | `qqcfg get org budget`; the ceiling waits on suraj |
 | V0-TST-01 result sink in test builders (asked by test-pipelines) | #5 | merged |
 | V0-PRF-01 `bench` in python-service and node-app (asked by perf) | #6 | merged |
-| V0-CFG-05 one source for policy | none | waits on V0-GAR-03 and V0-REL-03 |
+| V0-CFG-05 one source for policy | partial | `auto_revert` `auto_land_repos` for V0-GAR-03; waits on V0-REL-03 |
 
 ## Quick start
 
@@ -111,7 +111,7 @@ read first).
 | `pipelines` | seed | The canary builders, once release has an executor (V0-REL-03); switching steps from `interim` commands to recipes adapters; a gate-side check that delivered stubs match this repo. |
 | `gate` | seed | Making the change classes machine-checkable; the gate check app; tree closers. suraj applies the GitHub settings (merge queue, required checks). |
 | `flakes` | seed | Exoneration thresholds and enforcing quarantine expiry (v1). test-pipelines reads `[verdict]` in v0. |
-| `auto_revert` | seed | A gardener that stays within the caps; whether deploy failures get their own budget. |
+| `auto_revert` | seed | A gardener that stays within the caps and lands reverts only in `auto_land_repos` (empty in v0, so it proposes); whether deploy failures get their own budget. |
 | `rollers` | seed | A Python lockfile for xo-space. rollers generates Dependabot config from the `dependabot` rollers and runs the toolchain roller. |
 | `channels` | seed | Who advances `lkgr`; what a channel and a rollout percentage mean for each deploy target; rollback. |
 | `fuzz` | seed | v0 runs time-boxed property tests in the gate and the canary's fuzz smoke. Fuzz harnesses, orchestration and corpus storage are v1 (schedules marked `phase = "v1"`). |
@@ -140,6 +140,8 @@ changing one needs the policy-owner (suraj).
   only clean reverts. The 10 is suraj's; counting reverts created is a default he can change.
   Beneath that cap sit LUCI Bisection's limits: 10 created per failure type, 4 auto-submitted for
   build failures, none auto-submitted for test failures, and only culprits up to 6 h old.
+  Submission also needs the repo in `auto_land_repos`, which may name only repos in `repos.toml`;
+  it is empty in v0, so every revert is proposed and the policy-owner merges it.
 - Untrusted pools hold no secrets. Any builder that runs code from an open change (presubmit, or a
   `change` or `queue` trigger) and PR fuzzing run only in pools without secrets.
 - Post-submit builders are never cancelled. Repos are public only.
