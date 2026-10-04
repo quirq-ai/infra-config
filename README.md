@@ -11,13 +11,41 @@ stale. This repo keeps that model (source, then generated output, then an in-syn
 smaller parts.
 
 **Status: v0 skeleton, built width-first.** Every area is declared in enough detail for an expert
-to take it over. Nothing reads this config yet except its own tool, `qqcfg`. Each file's header
-says whether it is a `seed` (its values are decided) or a `stub` (only the shape is there, and the
-values are placeholders).
+to take it over. Each file's header says whether it is a `seed` (its values are decided) or a
+`stub` (only the shape is there, and the values are placeholders), and its `[area] read_by` names
+the readers it is meant for.
+
+Who reads it today (checked in each repo's main on 2026-10-04):
+
+| Reader | Reads |
+| --- | --- |
+| `qqcfg` here (validate, generate, deliver) | every area; `pipelines`, `kinds`, `repos` and `org` pools shape the generated workflows |
+| quirq-ai/gate | `gate`, `org`, `pipelines`, `repos` |
+| quirq-ai/rollers | `rollers`, `kinds`, `repos` |
+| quirq-ai/recipes (`qqrecipes check-kinds`) | `kinds` |
+| quirq-ai/sync | `kinds` |
+
+No reader yet: `auto_revert`, `channels`, `flakes`, `fuzz`, `health`, `perf` and `postmortem`. Their
+readers come with V0-TST-03 (flakes), V0-REL-03 (channels, health), V0-GAR-03/04 (auto_revert,
+postmortem), V0-REC-04 (fuzz) and V0-PRF-01 (perf), so V0-CFG-03's "their readers use them" is met
+only once those land.
 
 The plan behind this repo is in [docs/plan.md](docs/plan.md), and the 51 v0 work items for all
 thirteen quirq infra repos are in [docs/v0.md](docs/v0.md). Both are reference copies of suraj's
 originals, and changing them needs his approval.
+
+## v0 status
+
+| Item | PRs | State |
+| --- | --- | --- |
+| V0-CFG-01 schema, validator, CI | skeleton (87fef5f) | merged; waits on suraj's merge queue with `validate` required |
+| V0-ORG-01 the 13 repos | #1 | merged |
+| V0-CFG-03 fill the stubs | #2 | merged; readers listed above, several still to come |
+| V0-CFG-02 builders and drift check | #3, #5, #7, #8; xo-space #211, innernet #37 | generator merged; delivery PRs wait on suraj; drift fixes in review; org ruleset waits on #8 |
+| V0-CFG-04 suraj's v0 decisions | #4 | 4 `TODO(suraj, v0)` values wait on suraj |
+| V0-ORG-02 owners and rotations | #4 | `validate` lists them; suraj fills them |
+| V0-ORG-04 budget readable | #4 | `qqcfg get org budget`; the ceiling waits on suraj |
+| V0-CFG-05 one source for policy | none | waits on V0-GAR-03 and V0-REL-03 |
 
 ## Quick start
 
