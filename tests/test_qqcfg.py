@@ -292,7 +292,7 @@ class Delivery(unittest.TestCase):
             doc = yaml.safe_load(qqcfg.render(self.cfg)[f"github/{b['repo']}/qq-{b['name']}.yml"])
             last = next(iter(doc["jobs"].values()))["steps"][-1]
             if "test" in b["capabilities"]:
-                want_if = ("always() && (steps.qq-backfill.outcome == 'success' || steps.qq-backfill.outcome == 'skipped')"
+                want_if = ("always() && (github.event_name != 'workflow_dispatch' || steps.qq-backfill.outcome == 'success')"
                            if b["pipeline"] == "postsubmit" else "always()")
                 self.assertEqual((last.get("uses"), last.get("if")), (sink, want_if), b["name"])
                 kinds = qqcfg.by_name(self.cfg["kinds"]["kind"])
@@ -339,7 +339,7 @@ class Delivery(unittest.TestCase):
             sink = next(st for st in steps if st.get("name") == "qq result sink")
             # A refused backfill tested nothing, so it must not write to the write-once store (audit S1).
             self.assertEqual((sink["if"], sink["with"]["commit"], sink["with"]["kind"]),
-                             ("always() && (steps.qq-backfill.outcome == 'success' || steps.qq-backfill.outcome == 'skipped')",
+                             ("always() && (github.event_name != 'workflow_dispatch' || steps.qq-backfill.outcome == 'success')",
                               "${{ inputs.commit || github.sha }}", "postsubmit"))
 
     def test_backfill_check_rejects_a_dispatch_from_another_ref(self):
