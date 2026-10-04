@@ -26,6 +26,7 @@ python3 -m pip install -r requirements.txt     # jsonschema; Python 3.11+ for to
 python3 tools/qqcfg.py validate                # the CI check; exit 1 on any error
 python3 tools/qqcfg.py validate --todos        # also list every open decision
 python3 tools/qqcfg.py generate                # rewrite generated/ after editing config/
+python3 tools/qqcfg.py deliver xo-space ../xo-space   # copy its generated workflows into a checkout
 python3 -m unittest discover -s tests          # seed passes; known-bad changes fail
 ```
 
@@ -72,7 +73,7 @@ read first).
 | `org` | stub | Isolated runners for trusted work; OIDC trust for each deploy target; mapping Launchpad onto the backend seam. |
 | `kinds` | seed | Recipes adapters for `python-service`, `pytest`, `node-app` and `static-docs` that replace the `interim` commands; github provisioning for node. |
 | `repos` | seed | Each repo's own `infra/repo.toml` (with `sync`); moving xo-space from Python 3.12 to the org pin; confirming innernet's deploy target. |
-| `pipelines` | seed | Generating every builder, not just the one example; getting generated workflows into product repos. |
+| `pipelines` | seed | The canary builders, once release has an executor (V0-REL-03); switching steps from `interim` commands to recipes adapters; a gate-side check that delivered stubs match this repo. |
 | `gate` | seed | Making the change classes machine-checkable; the gate check app; tree closers. suraj applies the GitHub settings (merge queue, required checks). |
 | `flakes` | stub | Results store, exoneration thresholds, and enforcing quarantine expiry. |
 | `auto_revert` | seed | A gardener that stays within the caps; whether deploy failures get their own budget. |
@@ -135,11 +136,15 @@ Where the plan left a choice open, I picked the simplest well-known option:
   interpreter and would make config executable.
 - **JSON Schema 2020-12, checked with `jsonschema`.** It is independent of any language, so other
   tools and editors can use the same schemas.
-- **GitHub Actions as the only generator target, with one example** (`xo-space-presubmit`). Its
-  steps are interim commands in `kinds.toml` until the recipes adapters exist. The generated
-  workflow has not been run on GitHub yet; its commands pass locally against xo-space (`c3cea98`,
-  Python 3.14.8). It checks less than xo-space's own `tests.yml`, which stays a required check
-  until the repo's manifest targets cover the rest.
+- **GitHub Actions as the only generator target.** Every presubmit and post-submit builder for
+  xo-space and innernet is generated into `generated/github/<repo>/` and copied into the repo with
+  `python3 tools/qqcfg.py deliver <repo> <checkout>` (V0-CFG-02). Each stub carries a
+  `# qq-digest:` line, and a drift-check step in both stubs fails when any `qq-*.yml` was edited by
+  hand. Canary builders follow once release has an executor. Steps are interim commands in
+  `kinds.toml` until the recipes adapters exist (V0-REC-02, V0-REC-03); they pass locally against
+  xo-space `c3cea98` (Python 3.14.8) and innernet `da9b84c` (pnpm install, typecheck, build). The
+  xo-space stub checks less than its own `tests.yml`, which stays a required check until the repo's
+  manifest targets cover the rest.
 - **Squash merges**, because xo-space already uses them. **Dependabot** for ecosystem rolls (the
   plan lists it as an option). **GitHub Issues** for postmortem and fuzz tracking. **Atheris**
   (Python) and **Jazzer.js** (JS/TS) as fuzz engines, because neither needs containers. Cron

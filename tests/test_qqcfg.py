@@ -1,5 +1,6 @@
 """The seed config passes, and known-bad changes fail. Run: python3 -m unittest discover -s tests"""
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -109,6 +110,52 @@ class BadChangesFail(unittest.TestCase):
         self.edit("config/pipelines.toml", 'pipeline = "postsubmit"\ntriggers = ["land"]',
                   'pipeline = "postsubmit"\ntriggers = ["land", "change"]')
         self.assertFails("runs PR code")
+
+
+
+class Delivery(unittest.TestCase):
+    """V0-CFG-02: generated stubs land in a product repo, and a hand edit there fails its presubmit."""
+
+    def setUp(self):
+        self.cfg = qqcfg.load(ROOT)
+        self.dest = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.dest)
+
+    def drift_check(self):
+        return subprocess.run(["bash", "-c", qqcfg.DRIFT_CHECK], cwd=self.dest, capture_output=True, text=True)
+
+    def test_every_v0_repo_gets_presubmit_and_postsubmit(self):
+        for repo in ("xo-space", "innernet"):
+            names = {Path(k).name for k in qqcfg.render(self.cfg) if k.startswith(f"github/{repo}/")}
+            self.assertEqual(names, {f"qq-{repo}-presubmit.yml", f"qq-{repo}-postsubmit.yml"})
+
+    def test_delivered_stubs_pass_the_drift_check(self):
+        qqcfg.deliver(self.cfg, "innernet", self.dest)
+        self.assertEqual(self.drift_check().returncode, 0)
+
+    def test_hand_edit_in_product_repo_fails_the_drift_check(self):
+        qqcfg.deliver(self.cfg, "xo-space", self.dest)
+        stub = self.dest / ".github/workflows/qq-xo-space-presubmit.yml"
+        stub.write_text(stub.read_text().replace("timeout-minutes: 20", "timeout-minutes: 90"))
+        result = self.drift_check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("was edited by hand", result.stdout)
+
+    def test_deliver_removes_stale_stubs_and_is_idempotent(self):
+        stale = self.dest / ".github/workflows/qq-old-builder.yml"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("old")
+        self.assertIn("removed .github/workflows/qq-old-builder.yml", qqcfg.deliver(self.cfg, "innernet", self.dest))
+        self.assertEqual(qqcfg.deliver(self.cfg, "innernet", self.dest), [])
+
+    def test_deliver_leaves_hand_written_workflows_alone(self):
+        own = self.dest / ".github/workflows/tests.yml"
+        own.parent.mkdir(parents=True)
+        own.write_text("mine")
+        qqcfg.deliver(self.cfg, "xo-space", self.dest)
+        self.assertEqual(own.read_text(), "mine")
 
 
 if __name__ == "__main__":

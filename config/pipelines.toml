@@ -34,7 +34,7 @@ capabilities = ["fetch", "build", "test"]
 pool = "untrusted"
 blocking = true          # a required check in the landing gate
 timeout_minutes = 20
-generate = true          # the one builder tools/qqcfg.py generate renders today
+generate = true          # rendered by tools/qqcfg.py generate and delivered into the repo (V0-CFG-02)
 # It runs only install, compileall and pytest. xo-space's hand-written tests.yml also runs route
 # parity, the install/uninstall harnesses, plugin sync and Space UI syntax checks, so tests.yml stays
 # a required check until the repo's manifest targets cover those.
@@ -48,6 +48,7 @@ kinds = ["python-service", "pytest"]
 capabilities = ["fetch", "build", "test"]
 pool = "trusted"
 cancel_in_progress = false   # every main commit gets a verdict, so culprits stay findable
+generate = true
 
 [[builder]]
 name = "xo-space-canary-deploy"
@@ -58,6 +59,8 @@ channel = "canary"
 kinds = ["python-service"]
 capabilities = ["deploy"]   # moves the canary channel ref that the installer will follow
 pool = "trusted"
+# Not generated yet: the canary workflow runs the release executor (V0-REL-02, V0-REL-03), which
+# does not exist. CFG-02 delivers it once release does.
 
 # --- innernet -------------------------------------------------------------------------------
 
@@ -71,6 +74,7 @@ capabilities = ["fetch", "build", "test"]   # innernet has no tests yet; `test` 
 pool = "untrusted"
 blocking = true
 timeout_minutes = 20
+generate = true
 
 [[builder]]
 name = "innernet-postsubmit"
@@ -81,6 +85,7 @@ kinds = ["node-app"]
 capabilities = ["fetch", "build", "test"]
 pool = "trusted"
 cancel_in_progress = false
+generate = true
 
 [[builder]]
 name = "innernet-canary-deploy"
@@ -91,3 +96,4 @@ channel = "canary"
 kinds = ["node-app"]
 capabilities = ["deploy"]
 pool = "trusted"
+# Not generated yet; see xo-space-canary-deploy.

@@ -56,5 +56,5 @@
       }
     }
   },
-  "$defs": {"capability": {"enum": ["fetch", "build", "test", "package", "run", "deploy", "bench"]}}
+  "$defs": {"capability": {"enum": ["fetch", "build", "test", "package", "run", "deploy", "bench", "fuzz"]}}
 }

@@ -4,12 +4,14 @@
     python3 tools/qqcfg.py validate [--todos]   schema, cross-references, policy invariants,
                                                 and generated files in sync. Exit 1 on any error.
     python3 tools/qqcfg.py generate             rewrite generated/<backend>/ from config/.
+    python3 tools/qqcfg.py deliver REPO DIR     copy REPO's generated workflows into the checkout at DIR.
 
 Config is TOML: parsed, never executed. Needs Python 3.11+ (tomllib) and jsonschema (requirements.txt).
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -271,6 +273,31 @@ def check_policy(cfg: dict, err) -> int:
 
 CHECKOUT = "actions/checkout@v7"  # TODO(expert): pin actions by commit SHA (plan P5).
 GITHUB_EVENTS = {"change": "pull_request", "queue": "merge_group", "land": "push"}
+GENERATABLE = {"presubmit", "postsubmit"}  # release builders wait for the release executor (V0-REL-03)
+WORKFLOWS = ".github/workflows"            # where deliver puts them in a product repo
+DIGEST = "# qq-digest: sha256:"
+
+# A step that fails when any delivered qq-*.yml no longer matches its digest line, so a
+# hand-edited stub fails the repo's required check (V0-CFG-02). Change config and redeliver instead.
+DRIFT_CHECK = r"""python3 - <<'PY'
+import hashlib, pathlib, sys
+bad = []
+for p in sorted(pathlib.Path(".github/workflows").glob("qq-*.yml")):
+    lines = p.read_text().splitlines(keepends=True)
+    want = [l[len("# qq-digest: sha256:"):].strip() for l in lines if l.startswith("# qq-digest: sha256:")]
+    body = "".join(l for l in lines if not l.startswith("# qq-digest: "))
+    if want != [hashlib.sha256(body.encode()).hexdigest()]:
+        bad.append(str(p))
+for p in bad:
+    print(f"::error file={p}::{p} was edited by hand. Change quirq-ai/infra-config and redeliver it.")
+sys.exit(1 if bad else 0)
+PY"""
+
+
+def with_digest(text: str) -> str:
+    """Put the body's sha256 on line 3, after the two header comments. The drift check strips it again."""
+    lines = text.splitlines(keepends=True)
+    return "".join(lines[:2]) + DIGEST + hashlib.sha256(text.encode()).hexdigest() + "\n" + "".join(lines[2:])
 
 
 def q(s: str) -> str:
@@ -286,8 +313,8 @@ def render(cfg: dict) -> dict[str, str]:
         if not b.get("generate"):
             continue
         where = f"builder {b['name']!r}"
-        if b.get("backend", defaults["backend"]) != "github" or b["pipeline"] != "presubmit":
-            raise ConfigError(f"{where}: only presubmit builders on the github backend can be generated today")
+        if b.get("backend", defaults["backend"]) != "github" or b["pipeline"] not in GENERATABLE:
+            raise ConfigError(f"{where}: only {sorted(GENERATABLE)} builders on the github backend can be generated today")
         repo = repos[b["repo"]]
         names = {kinds[k].get("toolchain") for k in b["kinds"]} - {None}
         if len(names) != 1:
@@ -320,7 +347,7 @@ def render(cfg: dict) -> dict[str, str]:
             "  contents: read",
             "concurrency:",
             f"  group: {q('qq-' + b['name'] + '-${{ github.ref }}')}",
-            f"  cancel-in-progress: {'true' if b.get('cancel_in_progress', True) else 'false'}",
+            f"  cancel-in-progress: {'true' if b.get('cancel_in_progress', b['pipeline'] != 'postsubmit') else 'false'}",
             "jobs:",
             f"  {b['name']}:",
             f"    runs-on: {q(by_name(cfg['org']['pool'])[b['pool']]['github']['runs_on'])}",
@@ -331,10 +358,36 @@ def render(cfg: dict) -> dict[str, str]:
             "        with:",
             f"          {tc['github']['version_input']}: {q(tc['pin'])}",
         ]
+        # Both pipelines check, so deleting the step from one stub is caught by the other after it lands.
+        # TODO(expert): gate (V0-GAT-01) should also compare delivered stubs with infra-config itself.
+        if b["pipeline"] in GENERATABLE:
+            lines += ['      - name: "qq drift check (generated workflows not hand-edited)"', "        run: |",
+                      *("          " + line for line in DRIFT_CHECK.splitlines())]
         for name, cmd in steps:
             lines += [f"      - name: {q(name)}", f"        run: {q(cmd)}"]
-        out[f"github/{b['repo']}/qq-{b['name']}.yml"] = "\n".join(lines) + "\n"
+        out[f"github/{b['repo']}/qq-{b['name']}.yml"] = with_digest("\n".join(lines) + "\n")
     return out
+
+
+def deliver(cfg: dict, repo: str, dest: Path) -> list[str]:
+    """Write repo's generated workflows into a checkout and drop stale qq-*.yml. Returns what changed."""
+    if repo not in by_name(cfg["repos"]["repo"]):
+        raise ConfigError(f"no repo {repo!r} in repos.toml")
+    prefix = f"github/{repo}/"
+    want = {k[len(prefix):]: v for k, v in render(cfg).items() if k.startswith(prefix)}
+    wf = dest / WORKFLOWS
+    wf.mkdir(parents=True, exist_ok=True)
+    changed = []
+    for p in sorted(wf.glob("qq-*.yml")):
+        if p.name not in want:
+            p.unlink()
+            changed.append(f"removed {WORKFLOWS}/{p.name}")
+    for name, text in sorted(want.items()):
+        p = wf / name
+        if not p.exists() or p.read_text() != text:
+            p.write_text(text)
+            changed.append(f"wrote {WORKFLOWS}/{name}")
+    return changed
 
 
 def check_generated(root: Path, cfg: dict, err) -> int:
@@ -404,10 +457,23 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="qqcfg", description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=["validate", "generate"])
+    ap.add_argument("command", choices=["validate", "generate", "deliver"])
+    ap.add_argument("repo", nargs="?", help="deliver: the product repo, e.g. xo-space")
+    ap.add_argument("dest", nargs="?", type=Path, help="deliver: path to that repo's checkout")
     ap.add_argument("--root", type=Path, default=ROOT, help="repo root (default: this checkout)")
     ap.add_argument("--todos", action="store_true", help="validate: also list open TODOs")
     args = ap.parse_args(argv)
+
+    if args.command == "deliver":
+        if not (args.repo and args.dest):
+            ap.error("deliver needs REPO and DIR")
+        try:
+            changed = deliver(load(args.root), args.repo, args.dest)
+        except ConfigError as e:
+            print(f"qqcfg deliver: {e}", file=sys.stderr)
+            return 1
+        print("\n".join(changed) or "already up to date")
+        return 0
 
     if args.command == "generate":
         cfg = load(args.root)
