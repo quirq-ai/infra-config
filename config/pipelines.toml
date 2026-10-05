@@ -110,3 +110,29 @@ kinds = ["node-app"]
 capabilities = ["deploy"]
 pool = "trusted"
 generate = false            # runs in quirq-ai/release; see xo-space-canary-deploy
+
+# --- website --------------------------------------------------------------------------------
+# No canary builder: website has no channels yet (repos.toml).
+
+[[builder]]
+name = "website-presubmit"
+repo = "website"
+pipeline = "presubmit"
+triggers = ["change", "queue"]
+kinds = ["gatsby-site"]
+capabilities = ["fetch", "build", "test"]
+pool = "untrusted"
+blocking = true
+timeout_minutes = 20     # website's own validate.yml (install, catalog check, test, build) took 3 min on 48a073c
+generate = true
+
+[[builder]]
+name = "website-postsubmit"
+repo = "website"
+pipeline = "postsubmit"
+triggers = ["land"]
+kinds = ["gatsby-site"]
+capabilities = ["fetch", "build", "test"]
+pool = "trusted"
+cancel_in_progress = false
+generate = true

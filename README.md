@@ -75,7 +75,7 @@ infra-config/
 │   ├── org.toml            system name, backends, roles, pools, secret scopes, budget, rotations,
 │   │                       and the thirteen quirq infra repos
 │   ├── kinds.toml          toolchains and target kinds (year one: latest Python, latest Next.js)
-│   ├── repos.toml          registry of onboarded repos: xo-space, innernet
+│   ├── repos.toml          registry of onboarded repos: xo-space, innernet, website
 │   ├── pipelines.toml      builders: presubmit, postsubmit, release
 │   ├── gate.toml           landing gate, verification surface, who may land what
 │   ├── flakes.toml         retries, exoneration, quarantine with expiry

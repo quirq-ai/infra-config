@@ -33,6 +33,19 @@ from = "quirq-ai/rollers"   # V0-ROL-02; xo-space #219 at 49b1bac, from rollers 
 sha256 = "9041a9b8b834380b3781004b7f5b76f995dc51ac98eabd4df2d113629d6f552e"
 
 [[repo]]
+name = "website"
+source = "github.com/quirq-ai/website"
+description = "Gatsby site (Quirq Home base) managed with pnpm."
+visibility = "public"
+default_branch = "main"
+kinds = ["gatsby-site"]
+manifest = "infra/repo.toml"
+channels = []            # not in the canary yet: release's canary.yml and its App cover xo-space and innernet only
+owners = []              # suraj fills in
+[repo.deploy]
+target = "vercel"        # TODO(expert): verify; vercel.json and .vercelignore are the only hints.
+
+[[repo]]
 name = "innernet"
 source = "github.com/quirq-ai/innernet"
 description = "Next.js app managed with pnpm."
