@@ -65,6 +65,17 @@ build = "pnpm build"
 test = "pnpm typecheck"  # innernet has no tests yet; typecheck stands in. No test_reports: qqcfg writes a one-case report
 
 [[kind]]
+name = "gatsby-site"     # a Gatsby site managed with pnpm (quirq-ai/website)
+phase = "year-one"
+capabilities = ["fetch", "build", "test", "deploy"]
+toolchain = "node"
+[kind.interim]           # checked against website 48a073c on Node 24.21.0, 2026-10-05 (install, build, test pass)
+fetch = "npm install --global pnpm@10 && pnpm install --frozen-lockfile"   # pnpm 10 follows package.json packageManager
+build = "GATSBY_TELEMETRY_DISABLED=1 GATSBY_CPU_COUNT=2 NODE_OPTIONS=--max-old-space-size=6144 pnpm build"   # prebuild runs apps:check
+test = "pnpm test"       # node --test; no test_reports: qqcfg writes a one-case report
+# TODO(expert): a recipes adapter for gatsby-site, so `qq build` and `qq test` work locally (exit test 2).
+
+[[kind]]
 name = "static-docs"
 phase = "year-one"
 capabilities = ["build", "deploy"]
