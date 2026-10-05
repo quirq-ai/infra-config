@@ -43,7 +43,7 @@ manifest = "infra/repo.toml"
 channels = []            # not in the canary yet: release's canary.yml and its App cover xo-space and innernet only
 owners = []              # suraj fills in
 [repo.deploy]
-target = "vercel"        # TODO(expert): verify; vercel.json and .vercelignore are the only hints.
+target = "vercel"        # Vercel's GitHub app deploys PR previews (website #1); TODO(expert): verify production.
 
 [[repo]]
 name = "innernet"
