@@ -25,7 +25,7 @@ Who reads it today (checked in each repo's main on 2026-10-07):
 | quirq-ai/recipes (`qqrecipes check-kinds`) | `kinds` |
 | quirq-ai/sync | `kinds` |
 | quirq-ai/test-pipelines (`qqresults`, when given `--infra-config`) | `flakes` |
-| quirq-ai/gardener (`qqgarden`, V0-GAR-03, V0-GAR-04) | `auto_revert`, `postmortem` |
+| quirq-ai/gardener (`qqgarden`, V0-GAR-03, V0-GAR-04) | `auto_revert`, `postmortem`, `pipelines`, `repos`, `org` |
 | quirq-ai/release (`qqrelease`, V0-REL-01..03) | `channels`, `health` (canary probes), `pipelines`, `repos` |
 | quirq-ai/monitoring (raw files, not `qqcfg`) | `channels`, `repos` |
 
@@ -46,12 +46,12 @@ originals, and changing them needs his approval.
 | V0-CFG-03 fill the stubs | #2 | merged; readers listed above; `fuzz` and `perf` have none yet |
 | V0-CFG-02 builders and drift check | #3, #7 (S5 test reports), #8, #24 to #27 (drift fixes); xo-space #211, innernet #37, website #1 | merged and delivered to all three product repos. The `qq-drift` org ruleset is off: quirq-ai is on GitHub Free, which has no org rulesets (gate `docs/apply-settings.md`), so nothing requires `qq-drift.yml` yet |
 | website onboarding | #31, #32 | merged; gate's settings for website (gate #28) are merged but not applied yet |
-| V0-CFG-04 suraj's v0 decisions | #4 | 3 `TODO(suraj, v0)` values wait on suraj (canary hour, revert-cap counting, compute ceiling) |
+| V0-CFG-04 suraj's v0 decisions | #4 | suraj decided the 3 `TODO(suraj, v0)` values on 2026-10-06 (canary hour, revert-cap counting, compute ceiling); they are not written into config yet |
 | V0-ORG-02 owners and rotations | #4, #30 | suraj owns `org` and the thirteen infra repos (#30); `validate` lists the 12 areas, 3 product repos and 3 rotations still empty |
-| V0-ORG-04 budget readable | #4 | `qqcfg get org budget`; the ceiling waits on suraj |
+| V0-ORG-04 budget readable | #4 | `qqcfg get org budget`; suraj decided the ceiling on 2026-10-06, but it is not written into config yet |
 | V0-TST-01 result sink in test builders (asked by test-pipelines) | #5 | merged |
 | V0-PRF-01 `bench` in python-service and node-app (asked by perf) | #6 | merged |
-| V0-CFG-05 one source for policy | partial | gardener's caps and `auto_land_repos` come from `auto_revert` (gardener `tests/test_policy.py`); release reads `channels` and `health`; release's fuzz smoke bounds are still in its code |
+| V0-CFG-05 one source for policy | partial | gardener's caps and `auto_land_repos` come from `auto_revert` (gardener `tests/test_policy.py`); release reads `channels`, `health`, `pipelines` and `repos`; release's fuzz smoke bounds are still in its code |
 
 ## Quick start
 
@@ -122,7 +122,7 @@ infra-config/
 ```
 
 Every config file begins with the same `[area]` header: `name`, `status` (`seed` or `stub`),
-`schema` version (`v0`), `owners` (left empty; suraj fills it in, and nothing here assigns owners),
+`schema` version (`v0`), `owners` (empty in most areas until suraj fills it in; `org` names suraj),
 `read_by` (the systems that will read the file) and `chromium` (the counterpart an expert should
 read first).
 
@@ -237,9 +237,10 @@ compute ceiling is set. The ones for suraj:
 ## How this fits with the other repos
 
 `gate` reads `repos`, `pipelines` and `gate` to decide which checks are required. `gardener`
-reads `auto_revert` and `postmortem` (and later `flakes`). `release` reads `channels` and `health`;
+reads `auto_revert`, `postmortem`, `pipelines`, `repos` and `org` (and later `flakes`). `release` reads
+`channels`, `health`, `pipelines` and `repos`;
 `installer` follows release's published `channels.json`, not this repo.
-`rollers` reads `rollers` and moves the pins in `kinds`. Per the plan, `sync` will own the single
+`rollers` reads `rollers` and `kinds` and moves the toolchain pins in each product repo's `infra/repo.toml`. Per the plan, `sync` will own the single
 parser library. sync exists but parses only manifests, so every Python reader goes through
 `qqcfg.load` and writes no parser of its own. monitoring, a read-only TypeScript dashboard, parses
 `channels.toml` and `repos.toml` itself.
