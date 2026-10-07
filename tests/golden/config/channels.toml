@@ -1,0 +1,62 @@
+# Release channels and promotion rules. A build reaches a channel only from the channel before it,
+# in file order. Settled with suraj: canary (agents only), then dev (humans plus agents), then
+# stable. The fully autonomous loop is canary: a research and test environment that runs unattended
+# daily. Human owners approve before any release reaches people, and only suraj promotes to stable.
+# Numbers are proposals.
+
+[area]
+name = "channels"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["release (P5)", "installer (P5)"]
+chromium = "docs/process/release_cycle.md; LUCI promote.py"
+
+[source]
+ref = "lkgr"   # last known good: the newest main commit whose post-submit builders are all green
+# TODO(expert): who advances lkgr and how (a ref moved by a post-submit builder, like V8's lkgr finder).
+# TODO(expert): what a channel is per deploy target (an image tag, a Vercel alias, an installer feed).
+
+[[channel]]
+name = "canary"
+audience = ["agents"]
+from = "lkgr"
+cadence = "daily"
+schedule = "17 6 * * *"  # cron, UTC, off the hour: GitHub may delay or drop top-of-hour runs. TODO(suraj, v0): pick the canary hour.
+# release's canary workflow (quirq-ai/release .github/workflows/canary.yml, V0-REL-03) repeats this cron,
+# and its tests/test_canary.py checks the two match, so changing the hour needs a one-line change in release too.
+unattended = true        # nobody watches it; failures go to the gardener and postmortem.toml
+[channel.promotion]
+approval = "none"        # automatic once lkgr moves
+min_soak_hours = 0
+min_consecutive_green = 1
+health_signals = []
+
+[[channel]]
+name = "dev"
+audience = ["humans", "agents"]
+from = "canary"
+cadence = "weekly"
+unattended = false
+[channel.promotion]
+approval = "human-owner" # settled: a human owner approves before any release; the release rotation prepares it
+min_soak_hours = 24
+min_consecutive_green = 3   # canary deploys in a row
+health_signals = ["error-rate", "canary-deploy"]
+
+[[channel]]
+name = "stable"
+audience = ["everyone"]
+from = "dev"
+cadence = "biweekly"     # a target, as Chromium's two-week stable (plan §10.2 #8); suraj approves each promotion
+# TODO(suraj): confirm the two-week stable target.
+unattended = false
+[channel.promotion]
+approval = "policy-owner"   # suraj
+min_soak_hours = 72
+min_consecutive_green = 1
+health_signals = ["error-rate", "session-drop"]
+rollout_percent = [10, 50, 100]   # TODO(expert): what a rollout percentage means per deploy target.
+[channel.rollback]
+to = "previous"
+approval = "human-owner" # TODO(suraj): may an agent roll stable back alone on a health breach? It restores a build you approved.

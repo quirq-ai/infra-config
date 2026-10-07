@@ -1,0 +1,199 @@
+# Org-wide policy: the system's name, execution backends, roles, pools, secret scopes, budget and
+# rotations. Every other area refers to the names defined here.
+# SEED (V0-CFG-03): names, backends, policy-owner, the two pools, the two secret scopes and the three
+# rotations are what v0 runs on: proposed in the skeleton, settled when suraj approves V0-CFG-03. Hardening (isolated runners, OIDC trust per target, Launchpad) is
+# marked TODO(expert). The compute ceiling is suraj's (V0-ORG-04) and rotation members are his.
+
+[area]
+name = "org"
+status = "seed"
+schema = "v0"
+owners = ["@sharmasuraj0123"]   # set by suraj
+read_by = ["gate", "gardener", "release", "rollers"]
+chromium = "infra/chromium @chromium-luci library; infradata/config"
+
+[org]
+system = "quirq infra"
+short = "qq"                  # settled: qq is the prefix for every CLI and generated name
+code_host = "github.com/quirq-ai"
+default_backend = "github"
+
+# Execution backends. Settled: v0 runs on GitHub, and execution later moves to Launchpad, quirq's
+# own cloud. Config stays backend-neutral: anything backend-specific sits in a sub-table named after
+# its backend (for example [pool.github]) or is selected by a `backend` field.
+[[backend]]
+name = "github"
+status = "active"
+
+[[backend]]
+name = "launchpad"
+status = "planned"            # TODO(expert): map Launchpad's executor, queue and secrets onto these areas.
+
+[roles]
+# Settled: policy changes and stable promotion need suraj.
+policy-owner = ["@sharmasuraj0123"]
+
+# A pool is a security boundary (Chromium docs/infra/glossary.md). Code from an open change never
+# runs where a secret is reachable: presubmit and PR fuzzing use "untrusted", while post-submit,
+# release and deploy use "trusted".
+[[pool]]
+name = "untrusted"
+secrets = []
+[pool.github]
+runs_on = "ubuntu-24.04"
+
+[[pool]]
+name = "trusted"
+secrets = ["deploy", "posthog-read"]
+[pool.github]
+runs_on = "ubuntu-24.04"      # TODO(expert): isolated runners for trusted work (plan §10 #7).
+
+[[secret_scope]]
+name = "deploy"
+mechanism = "oidc"            # short-lived credentials only
+# TODO(expert): OIDC trust per deploy target and who may mint credentials.
+
+[[secret_scope]]
+name = "posthog-read"
+mechanism = "token"           # read-only; health signals observe, they never act
+# TODO(expert): where the PostHog read key is stored and rotated.
+
+[budget]
+monthly_ci_usd = 0            # TODO(suraj, v0): set the monthly CI compute ceiling (plan §10 #9). 0 means not set.
+
+# The thirteen quirq infra repos (plan §5.5), one job each. Settled: all public (D2), all built as v0
+# base versions (D3). suraj created them on 2026-10-04 (V0-ORG-01). `wave` is the v0 start order, 1 to 4,
+# from the v0 dependency order in docs/v0.md as the launch plan (2026-10-03) grouped it.
+# tools/qqcfg.py checks this list is exactly the plan's thirteen. Product repos are in repos.toml.
+[[infra_repo]]
+name = "depot"
+source = "github.com/quirq-ai/depot"
+visibility = "public"
+wave = 2
+owns = "The qq CLI: bootstrap, fetch, sync, build, test, try, upload, land, roll, status."
+chromium = "depot_tools"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "sync"
+source = "github.com/quirq-ai/sync"
+visibility = "public"
+wave = 1
+owns = "The manifest schema, the only parser and editor library, the resolver, mirroring policy."
+chromium = "gclient, DEPS and gclient_eval"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "recipes"
+source = "github.com/quirq-ai/recipes"
+visibility = "public"
+wave = 2
+owns = "Adapters per kind: python-service, pytest, node-app, container-image, static-docs, then go and rust."
+chromium = "chromium/tools/build recipes and recipes-py"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "infra-config"
+source = "github.com/quirq-ai/infra-config"
+visibility = "public"
+wave = 1
+owns = "Org-wide policy and builder definitions as data, validated by qqcfg (this repo)."
+chromium = "infra/config with lucicfg; infradata/config"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "test-pipelines"
+source = "github.com/quirq-ai/test-pipelines"
+visibility = "public"
+wave = 3
+owns = "Result schema and sinks, results store, flakes, quarantine, retry and exoneration, autosharding."
+chromium = "ResultDB, ResultSink and LUCI Analysis"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "gate"
+source = "github.com/quirq-ai/gate"
+visibility = "public"
+wave = 3
+owns = "Required checks from config, merge-queue integration, reuse keys, quotas, tree status."
+chromium = "LUCI CV and commit-queue.cfg"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "toolchains"
+source = "github.com/quirq-ai/toolchains"
+visibility = "public"
+wave = 1
+owns = "Hermetic toolchains built by CI, staged, promoted and pinned by digest."
+chromium = "CIPD, 3pp and the clang upload/promote flow"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "remote-build"
+source = "github.com/quirq-ai/remote-build"
+visibility = "public"
+wave = 3
+owns = "Action cache, then remote execution, with typed fallback counters (the goma slot)."
+chromium = "goma, reclient, Siso and RBE"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "gardener"
+source = "github.com/quirq-ai/gardener"
+visibility = "public"
+wave = 4
+owns = "Failure grouping, bisection, reverts within budget, tree status, rotation."
+chromium = "gardeners, Sheriff-o-Matic, LUCI Bisection, tree closers"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "rollers"
+source = "github.com/quirq-ai/rollers"
+visibility = "public"
+wave = 2
+owns = "Automatic pin updates for deps, toolchains and adapters, through sync."
+chromium = "Skia AutoRoll"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "release"
+source = "github.com/quirq-ai/release"
+visibility = "public"
+wave = 4
+owns = "Versioning, lkgr, branch cuts, channels, promotion, notes, deploy operations, rollback."
+chromium = "V8 release scripts and lkgr finder, chrome-official-brancher; LUCI promote.py"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "installer"
+source = "github.com/quirq-ai/installer"
+visibility = "public"
+wave = 4
+owns = "Client installers and updaters that follow a channel."
+chromium = "chrome/updater and chrome/tools/build/win"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+[[infra_repo]]
+name = "perf"
+source = "github.com/quirq-ai/perf"
+visibility = "public"
+wave = 3
+owns = "Benchmarks, dashboard, alert thresholds, bisection."
+chromium = "chrome.perf, the perf dashboard and Pinpoint"
+owners = ["@sharmasuraj0123"]   # set by suraj
+
+# Rotations are seats. suraj fills `members` with people or agents.
+[[rotation]]
+name = "gardener"
+duty = "Keep main green: group failures, bisect, revert within auto_revert caps."
+members = []
+
+[[rotation]]
+name = "roller"
+duty = "Move pinned dependencies and toolchains through the gate (rollers.toml)."
+members = []
+
+[[rotation]]
+name = "release"
+duty = "Cut canary daily and prepare promotions for their human approvers (channels.toml)."
+members = []
