@@ -225,22 +225,23 @@ Where the plan left a choice open, I picked the simplest well-known option:
 marked `TODO(suraj, v0)`. `validate` also lists every empty `owners` list and rotation, and whether the
 compute ceiling is set. The ones for suraj:
 
-- **v0:** the hour of the daily canary deploy (`channels.toml`; release's `canary.yml` repeats it, and a release test checks they match)
-- **v0:** whether the cap of 10 keeps counting reverts created, the default, or counts only auto-landed
-  ones (`auto_revert.toml`)
 - whether an agent may roll stable back on its own when a health signal breaches (`channels.toml`)
-- the stable target of every two weeks, each promotion still his to approve (`channels.toml`)
-- **v0:** the monthly CI compute ceiling (`org.toml`)
 - the PostHog host and projects (`health.toml`)
 - **v0:** the owners of every area and repo, and the members of every rotation
 
+Decided by suraj on 2026-10-06 but not written into config yet, so `validate --todos` still lists
+them: the daily canary deploy at 06:17 UTC (`channels.toml`; release's `canary.yml` repeats it, and
+a release test checks they match), a revert cap of 10 a day
+(`auto_revert.toml`), stable every two weeks with each promotion his to approve (`channels.toml`),
+and no new compute spend as the monthly CI ceiling (`org.toml`).
+
 ## How this fits with the other repos
 
-`gate` reads `repos`, `pipelines` and `gate` to decide which checks are required. `gardener`
+`gate` reads `gate`, `kinds`, `org`, `pipelines` and `repos` to decide which checks are required. `gardener`
 reads `auto_revert`, `postmortem`, `pipelines`, `repos` and `org` (and later `flakes`). `release` reads
 `channels`, `health`, `pipelines` and `repos`;
 `installer` follows release's published `channels.json`, not this repo.
-`rollers` reads `rollers` and `kinds` and moves the toolchain pins in each product repo's `infra/repo.toml`. Per the plan, `sync` will own the single
+`rollers` reads `rollers`, `kinds`, `org` and `repos` and moves the toolchain pins in each product repo's `infra/repo.toml`. Per the plan, `sync` will own the single
 parser library. sync exists but parses only manifests, so every Python reader goes through
 `qqcfg.load` and writes no parser of its own. monitoring, a read-only TypeScript dashboard, parses
 `channels.toml` and `repos.toml` itself.
