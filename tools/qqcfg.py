@@ -9,6 +9,9 @@
     python3 tools/qqcfg.py deliver REPO DIR     copy REPO's generated workflows into the checkout at DIR.
     python3 tools/qqcfg.py check-delivered REPO DIR   fail if DIR's workflows drift from what REPO gets.
 
+--root DIR names the data (DIR/config, DIR/generated); code and schema always come from this checkout,
+so a user org's data-only qq-config validates the same way (README, "A user's own org").
+
 Config is TOML: parsed, never executed. Needs Python 3.11+ (tomllib) and jsonschema (requirements.in, locked with hashes in requirements.txt).
 """
 from __future__ import annotations
@@ -22,6 +25,9 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# Code and schema always come from this checkout. --root only names where the data (config/,
+# generated/) lives, so a user org's data-only qq-config repo is checked against quirq's schema.
+SCHEMA_DIR = ROOT / "schema"
 
 # Every area must exist. Adding an area means adding config/<area>.toml and schema/<area>.schema.json.
 REQUIRED_AREAS = ("org", "kinds", "repos", "pipelines", "gate", "flakes", "auto_revert",
@@ -31,6 +37,26 @@ REQUIRED_AREAS = ("org", "kinds", "repos", "pipelines", "gate", "flakes", "auto_
 # exactly these. Renaming, adding or dropping one is a plan change, so it is a change to this line.
 QQ_REPOS = ("depot", "sync", "recipes", "infra-config", "test-pipelines", "gate", "toolchains",
             "remote-build", "gardener", "rollers", "release", "installer", "perf")
+QUIRQ_HOST = "github.com/quirq-ai"
+# Any other org (the one-command setup) keeps its config in one data-only repo, and lists exactly
+# that repo as its only infra repo: it runs quirq's tools at pinned commits and builds none of them.
+USER_CONFIG_REPO = "qq-config"
+
+
+CODE_HOST_RE = re.compile(r"github\.com/[a-z0-9-]+")  # fullmatch: the schema's $ allows a trailing newline
+# A quirq-ai tool pinned by commit (timing, sink): no dots in any path segment, no Unicode, no trailing newline.
+TOOL_PIN_RE = re.compile(r"quirq-ai/[a-z0-9_-]+(/[a-z0-9_-]+)*@[0-9a-f]{40}")
+
+
+def is_quirq(cfg: dict) -> bool:
+    # GitHub owner names are case-insensitive, so Quirq-AI is quirq-ai and keeps every quirq-ai rule.
+    return cfg["org"]["org"]["code_host"].lower() == QUIRQ_HOST
+
+
+def config_repo(cfg: dict) -> str:
+    """owner/name of the repo that holds this config: quirq-ai/infra-config, or <org>/qq-config."""
+    owner = cfg["org"]["org"]["code_host"].rsplit("/", 1)[-1]
+    return f"{owner}/{'infra-config' if is_quirq(cfg) else USER_CONFIG_REPO}"
 
 # Settled policy that config alone cannot loosen. Changing these lines is itself a policy change,
 # and this file is a policy path (CODEOWNERS), so it needs the policy-owner.
@@ -75,7 +101,7 @@ def check_schema(root: Path, cfg: dict, err) -> None:
     from referencing import Registry, Resource
 
     schemas = {p.name.removesuffix(".schema.json"): json.loads(p.read_text())
-               for p in (root / "schema").glob("*.schema.json")}
+               for p in SCHEMA_DIR.glob("*.schema.json")}
     registry = Registry().with_resources(
         (s["$id"], Resource.from_contents(s)) for s in schemas.values())
     for area in REQUIRED_AREAS:
@@ -129,14 +155,30 @@ def check_refs(root: Path, cfg: dict, err) -> None:
         if b not in backends:
             err(f"{where}: unknown backend {b!r} (see org.toml [[backend]])")
     infra = by_name(cfg["org"]["infra_repo"])
-    for name in QQ_REPOS:
-        if name not in infra:
-            err(f"org: infra repo {name!r} is missing (plan §5.5 lists thirteen)")
+    host = cfg["org"]["org"]["code_host"]
+    if not CODE_HOST_RE.fullmatch(host):
+        err(f"org: code_host {host!r} must be exactly github.com/<org>, owner in lower case")
+    for what, pin in (("timing", defaults["timing"]), ("results sink", defaults["results"]["sink"])):
+        if not TOOL_PIN_RE.fullmatch(pin):
+            err(f"pipelines: defaults {what} {pin!r} must be a quirq-ai tool pinned by commit")
+    if is_quirq(cfg) and host != QUIRQ_HOST:
+        err(f"org: write code_host as {QUIRQ_HOST!r}, not {host!r}")
+    if root.resolve() == ROOT and not is_quirq(cfg):
+        err(f"org: this checkout is quirq's own config, so code_host must be {QUIRQ_HOST!r}; "
+            "a user org's qq-config is checked with --root")
+    if is_quirq(cfg):
+        for name in QQ_REPOS:
+            if name not in infra:
+                err(f"org: infra repo {name!r} is missing (plan §5.5 lists thirteen)")
+        for name in infra:
+            if name not in QQ_REPOS:
+                err(f"org: infra repo {name!r} is not one of the plan's thirteen")
+    elif list(infra) != [USER_CONFIG_REPO]:
+        err(f"org: an org other than {QUIRQ_HOST} lists exactly one infra repo, {USER_CONFIG_REPO!r}; "
+            f"got {sorted(infra)}")
     for name, r in infra.items():
-        if name not in QQ_REPOS:
-            err(f"org: infra repo {name!r} is not one of the plan's thirteen")
-        if r["source"] != f"{cfg['org']['org']['code_host']}/{name}":
-            err(f"org: infra repo {name!r} source must be {cfg['org']['org']['code_host']}/{name}")
+        if r["source"] != f"{host}/{name}":
+            err(f"org: infra repo {name!r} source must be {host}/{name}")
         if name in repos:
             err(f"org: {name!r} is both an infra repo and a product repo (repos.toml)")
     for k in kinds.values():
@@ -166,6 +208,8 @@ def check_refs(root: Path, cfg: dict, err) -> None:
         if "test_reports" in k and "test" not in k.get("interim", {}):
             err(f"kinds: {k['name']}: test_reports without an interim test command that writes them")
     for r in repos.values():
+        if r["source"] != f"{host}/{r['name']}":
+            err(f"repos: {r['name']}: source must be {host}/{r['name']}")
         for k in r["kinds"]:
             if k not in kinds:
                 err(f"repos: {r['name']}: unknown kind {k!r} (see kinds.toml)")
@@ -259,7 +303,8 @@ def check_refs(root: Path, cfg: dict, err) -> None:
     if cfg["fuzz"]["canary_smoke"]["duration_minutes"] < pt["canary_minutes"]:
         err("fuzz: canary_smoke duration_minutes must cover property_tests canary_minutes")
     template = cfg["postmortem"]["policy"]["template"]
-    if not (root / template).is_file():
+    # quirq-ai keeps its template beside its config; a user's data-only qq-config uses quirq's.
+    if not ((root if is_quirq(cfg) else ROOT) / template).is_file():
         err(f"postmortem: template {template!r} does not exist in this repo")
     trig = [e["event"] for e in cfg["postmortem"]["trigger"]]
     for dup in sorted({e for e in trig if trig.count(e) > 1}):
@@ -356,7 +401,7 @@ DIGEST = "# qq-digest: sha256:"
 # A step that fails when any delivered qq-*.yml no longer matches its digest line: a fast local signal.
 # A PR can edit this step away in its own stub, so the binding check is check_delivered, run from
 # this repo by .github/workflows/qq-drift.yml as an org-required workflow the PR cannot edit.
-DRIFT_CHECK = r"""python3 - <<'PY'
+DRIFT_CHECK_TEMPLATE = r"""python3 - <<'PY'
 import hashlib, pathlib, sys
 bad = []
 for p in sorted(pathlib.Path(".github/workflows").glob("qq-*.yml")):
@@ -366,9 +411,16 @@ for p in sorted(pathlib.Path(".github/workflows").glob("qq-*.yml")):
     if want != [hashlib.sha256(body.encode()).hexdigest()]:
         bad.append(str(p))
 for p in bad:
-    print(f"::error file={p}::{p} was edited by hand. Change quirq-ai/infra-config and redeliver it.")
+    print(f"::error file={p}::{p} was edited by hand. Change @CONFIG_REPO@ and redeliver it.")
 sys.exit(1 if bad else 0)
 PY"""
+
+
+def drift_check(repo: str) -> str:
+    return DRIFT_CHECK_TEMPLATE.replace("@CONFIG_REPO@", repo)
+
+
+DRIFT_CHECK = drift_check("quirq-ai/infra-config")  # what quirq-ai's own stubs run
 
 
 # Writes a one-testcase JUnit report from a step's outcome ($OUTCOME). {path} and {case} come from
@@ -423,8 +475,13 @@ def render(cfg: dict, required: bool = False) -> dict[str, str]:
     generated/. required=True: a copy of each presubmit builder that lives in this repo's own
     .github/workflows, keyed by that path, for an org "require workflows" ruleset pinned by commit.
     GitHub runs it in the product repo, and a PR there cannot edit it (rollers audit R-2)."""
+    if not CODE_HOST_RE.fullmatch(cfg["org"]["org"]["code_host"]):
+        raise ConfigError("org code_host must be exactly github.com/<org>, owner in lower case; run validate first")
+    if required and not is_quirq(cfg):
+        return {}  # v0 applies org rulesets only in quirq-ai, so no other org gets required copies
     kinds = by_name(cfg["kinds"]["kind"])
     owner = cfg["org"]["org"]["code_host"].rstrip("/").rsplit("/", 1)[-1]
+    source = config_repo(cfg)
     repos = by_name(cfg["repos"]["repo"])
     defaults = cfg["pipelines"]["defaults"]
     out = {}
@@ -470,7 +527,7 @@ def render(cfg: dict, required: bool = False) -> dict[str, str]:
                    '        description: "Main commit to run post-submit on (40-hex SHA)"',
                    "        required: true", "        type: string"]
         lines = [
-            "# GENERATED by qqcfg (tools/qqcfg.py generate) from quirq-ai/infra-config. Do not edit by hand.",
+            f"# GENERATED by qqcfg (tools/qqcfg.py generate) from {source}. Do not edit by hand.",
             f"# Source: config/pipelines.toml builder {q(b['name'])}. The job name is the required check.",
             *([f"# Org-required copy for {owner}/{b['repo']}: a ruleset pins this file by commit and runs it there."]
               if required else []),
@@ -506,7 +563,7 @@ def render(cfg: dict, required: bool = False) -> dict[str, str]:
         ]
         if b["pipeline"] in GENERATABLE:
             lines += ['      - name: "qq drift check (generated workflows not hand-edited)"', "        run: |",
-                      *("          " + line for line in DRIFT_CHECK.splitlines())]
+                      *("          " + line for line in drift_check(source).splitlines())]
         reports = []
         for cap, k, cmd in steps:
             lines.append(f"      - name: {q(f'{cap} ({k})')}")
@@ -814,7 +871,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("command", choices=["validate", "generate", "get", "deliver", "check-delivered"])
     ap.add_argument("target", nargs="?", help="get: the area, e.g. org; deliver, check-delivered: the product repo")
     ap.add_argument("detail", nargs="?", help="get: a dotted key, e.g. budget.monthly_ci_usd; deliver, check-delivered: path to that repo's checkout")
-    ap.add_argument("--root", type=Path, default=ROOT, help="repo root (default: this checkout)")
+    ap.add_argument("--root", type=Path, default=ROOT, help="where config/ and generated/ live (default: this checkout)")
     ap.add_argument("--todos", action="store_true", help="validate: also list open TODOs")
     ap.add_argument("--base", help="check-delivered: the PR's base branch; other branches than the default pass")
     ap.add_argument("--base-sha", help="check-delivered: the commit DIR's change is tested against (default HEAD^1)")
@@ -854,7 +911,10 @@ def main(argv: list[str] | None = None) -> int:
                     older = generations(args.root, args.target, cfg["pipelines"]["defaults"]["drift_grace_days"])
                 except ConfigError as e:
                     print(f"::warning::grace window unavailable, checking against main only: {e}")
-        errors = check_delivered(cfg, args.target, Path(args.detail), older, warn=lambda w: print(f"::warning::{w}"))
+        try:
+            errors = check_delivered(cfg, args.target, Path(args.detail), older, warn=lambda w: print(f"::warning::{w}"))
+        except ConfigError as e:
+            errors = [f"config: {e}"]
         for e in errors:
             print(f"::error::{e}")
         print(f"FAIL ({len(errors)})" if errors else f"PASS: {args.target}'s generated workflows match infra-config")
@@ -873,8 +933,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "generate":
         cfg = load(args.root)
+        if args.root.resolve() == ROOT and not is_quirq(cfg):
+            print(f"qqcfg generate: this checkout's code_host must be {QUIRQ_HOST!r}; "
+                  "generate a user org's qq-config with --root", file=sys.stderr)
+            return 1
         gen = args.root / "generated"
-        want = render(cfg)
+        try:
+            want, req = render(cfg), render(cfg, required=True)
+        except ConfigError as e:
+            print(f"qqcfg generate: {e}", file=sys.stderr)
+            return 1
         for p in sorted(gen.rglob("*"), reverse=True) if gen.exists() else []:
             if p.is_file() and p.relative_to(gen).as_posix() not in want:
                 p.unlink()
@@ -884,7 +952,6 @@ def main(argv: list[str] | None = None) -> int:
             (gen / rel).parent.mkdir(parents=True, exist_ok=True)
             (gen / rel).write_text(text)
             print(f"wrote generated/{rel}")
-        req = render(cfg, required=True)
         wf = args.root / WORKFLOWS
         for p in wf.glob(REQUIRED + "*") if wf.exists() else []:
             if f"{WORKFLOWS}/{p.name}" not in req:

@@ -1,0 +1,86 @@
+# Toolchains and target kinds, with the capabilities each kind implements (plan §5.2).
+# A kind resolves to an adapter in quirq-ai/recipes (contract and loader: V0-REC-01). Capabilities are
+# recipes' list: fetch, build, test, package, run, deploy, bench and fuzz. A missing
+# capability is a declared state, not an error: a docs site has no `test`.
+# Settled year-one stack: the latest Python and the latest Next.js. Containers come later.
+
+[area]
+name = "kinds"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["recipes", "sync", "tools/qqcfg.py generate"]
+chromium = "recipes in chromium/tools/build + recipes-py; toolchain pins checked by the build"
+
+# --- toolchains: one org-wide pin each; the roller rotation moves `pin` as `track` says ---------
+
+[[toolchain]]
+name = "python"
+track = "latest"         # settled: the latest Python
+pin = "3.14"             # latest stable (3.14.8) on 2026-10-03; 3.15.0 is at rc3, final due 2026-10-09 (PEP 790)
+[toolchain.github]
+uses = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97"  # v7.0.0
+version_input = "python-version"
+
+[[toolchain]]
+name = "node"
+track = "lts"            # for the latest Next.js (16.3.8 on npm, 2026-10-03)
+pin = "24"               # current Node LTS on nodejs.org, 2026-10-03
+[toolchain.github]
+uses = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"    # v7.0.0
+version_input = "node-version"
+# TODO(expert): hermetic pins by digest (plan P3) once containers are in scope.
+
+# --- kinds -----------------------------------------------------------------------------------
+# `interim` holds stand-in commands until the recipes adapter for that kind exists (P1). Only
+# tools/qqcfg.py generate reads them, and only for builders marked `generate = true`.
+
+[[kind]]
+name = "python-service"
+phase = "year-one"
+capabilities = ["fetch", "build", "run", "deploy", "bench"]
+toolchain = "python"
+[kind.interim]
+fetch = "python -m pip install --quiet -r requirements.txt"
+build = "python -m compileall -q ."
+
+[[kind]]
+name = "pytest"
+phase = "year-one"
+capabilities = ["fetch", "test"]
+toolchain = "python"
+test_reports = ["results/junit.xml"]   # what the interim test command writes, for the result sink
+[kind.interim]
+fetch = "python -m pip install --quiet -r requirements-dev.txt"
+test = "python -m pytest -q -p no:cacheprovider --junitxml=results/junit.xml"
+
+[[kind]]
+name = "node-app"        # Next.js apps managed with pnpm
+phase = "year-one"
+capabilities = ["fetch", "build", "test", "run", "deploy", "bench"]
+toolchain = "node"
+[kind.interim]           # checked against innernet da9b84c on 2026-10-04 (install, typecheck, build pass)
+fetch = "npm install --global pnpm@10 && pnpm install --frozen-lockfile"   # TODO(expert): pin pnpm with the node toolchain (V0-TCH-02).
+build = "pnpm build"
+test = "pnpm typecheck"  # innernet has no tests yet; typecheck stands in. No test_reports: qqcfg writes a one-case report
+
+[[kind]]
+name = "gatsby-site"     # a Gatsby site managed with pnpm (quirq-ai/website)
+phase = "year-one"
+capabilities = ["fetch", "build", "test", "deploy"]
+toolchain = "node"
+[kind.interim]           # checked against website 48a073c on Node 24.21.0, 2026-10-05 (install, build, test pass)
+fetch = "npm install --global pnpm@10 && pnpm install --frozen-lockfile"   # pnpm 10 follows package.json packageManager
+build = "GATSBY_TELEMETRY_DISABLED=1 GATSBY_CPU_COUNT=2 NODE_OPTIONS=--max-old-space-size=6144 pnpm build"   # prebuild runs apps:check
+test = "pnpm test"       # node --test; no test_reports: qqcfg writes a one-case report
+# TODO(expert): a recipes adapter for gatsby-site, so `qq build` and `qq test` work locally (exit test 2).
+
+[[kind]]
+name = "static-docs"
+phase = "year-one"
+capabilities = ["build", "deploy"]
+
+[[kind]]
+name = "container-image"
+phase = "later"          # settled: containers come later
+capabilities = ["build", "package", "deploy"]

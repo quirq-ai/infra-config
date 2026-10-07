@@ -1,0 +1,63 @@
+# The registry of onboarded repos. Onboarding a repo means adding one [[repo]] block here, plus
+# the repo's own infra/repo.toml once `sync` exists. Facts were read from the repos on 2026-10-03.
+# Settled: public repos only for now (both repos below clone anonymously).
+
+[area]
+name = "repos"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["gate", "gardener", "release", "rollers"]
+chromium = "projects and refs declared in infra/config (lucicfg)"
+
+[[repo]]
+name = "xo-space"
+source = "github.com/quirq-ai/xo-space"
+description = "Python FastAPI app (cowork API and Space UI) that users install on their machines."
+visibility = "public"
+default_branch = "main"
+kinds = ["python-service", "pytest"]
+manifest = "infra/repo.toml"   # not created yet (P1)
+channels = ["canary", "dev", "stable"]
+owners = []              # suraj fills in
+[repo.deploy]
+target = "installer-channel"   # install.sh and the in-app updater follow a channel ref (P5); today they follow main
+# xo-space runs Python 3.12 today (Dockerfile, tests.yml); moving to the org pin is P1 work.
+# It also publishes a container image to ghcr; containers stay out of scope until later.
+# qq-*.yml files another quirq tool delivers (not qqcfg). qq-drift requires each to match its digest
+# (sha256 of the file's bytes) when present, so a reviewed product PR cannot weaken it unnoticed;
+# its owner bumps the digest here when it redelivers.
+[[repo.other_qq_workflows]]
+file = "qq-roll-land.yml"
+from = "quirq-ai/rollers"   # V0-ROL-02; xo-space #219 at 49b1bac, from rollers f9be218 (ROL-R6, B-R6-1)
+sha256 = "9041a9b8b834380b3781004b7f5b76f995dc51ac98eabd4df2d113629d6f552e"
+
+[[repo]]
+name = "website"
+source = "github.com/quirq-ai/website"
+description = "Gatsby site (Quirq Home base) managed with pnpm."
+visibility = "public"
+default_branch = "main"
+kinds = ["gatsby-site"]
+manifest = "infra/repo.toml"
+channels = []            # not in the canary yet: release's canary.yml and its App cover xo-space and innernet only
+owners = []              # suraj fills in
+[repo.deploy]
+target = "vercel"        # Vercel's GitHub app deploys PR previews (website #1); TODO(expert): verify production.
+
+[[repo]]
+name = "innernet"
+source = "github.com/quirq-ai/innernet"
+description = "Next.js app managed with pnpm."
+visibility = "public"
+default_branch = "main"
+kinds = ["node-app"]
+manifest = "infra/repo.toml"   # not created yet (P1)
+channels = ["canary", "dev", "stable"]
+owners = []              # suraj fills in
+[repo.deploy]
+target = "vercel"        # TODO(expert): verify Vercel (only a .vercelignore hints).
+[[repo.other_qq_workflows]]
+file = "qq-roll-land.yml"
+from = "quirq-ai/rollers"   # V0-ROL-02; innernet #38 at 2389035, from rollers f9be218 (ROL-R6, B-R6-1)
+sha256 = "79fdc0427d06ed4015c899a4807e564aa5300b50f87f0912d24eaff548906856"

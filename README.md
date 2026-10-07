@@ -66,6 +66,28 @@ python3 -m unittest discover -s tests          # seed passes; known-bad changes 
 `validate` checks five things: the TOML parses, every area matches its JSON Schema, every
 reference resolves, the policy invariants hold, and `generated/` matches what `generate` would
 write. `.github/workflows/validate.yml` runs it with the tests on every PR and in the merge queue.
+`render()` itself is pinned by a golden test (`tests/golden/`): quirq-ai's config there must render
+byte for byte what it rendered before, because each delivered stub's `qq-digest` covers its header.
+A change that means to alter generated output updates `tests/golden/` in the same PR.
+
+### A user's own org (one-command setup)
+
+`--root DIR` names the data to check or generate: `DIR/config/` and `DIR/generated/`. Code,
+schema and the postmortem template always come from this checkout, so a user's `<org>/qq-config`
+holds data only (all 13 areas, `generated/`, and the pinned infra-config commit):
+
+```sh
+python3 tools/qqcfg.py validate --root ../qq-config
+python3 tools/qqcfg.py generate --root ../qq-config
+```
+
+Every repo's `source` must be exactly `<code_host>/<name>`, with `code_host` a `github.com/<org>`
+and the owner in lower case (a `Quirq-AI` spelling would still count as quirq-ai). When `code_host` is `github.com/quirq-ai`, the thirteen infra
+repos are required as before, and this checkout's own config (the default `--root`) must be
+quirq-ai's. Any other org lists exactly one infra repo, `qq-config`. A user org gets no `qq-required-*` org copies, and its stubs name `<org>/qq-config` as
+their source. Tool pins are never derived from `code_host`: the schema requires gate's timing step,
+test-pipelines' sink and `other_qq_workflows` `from` to name quirq-ai, so every org runs quirq's
+tools at pinned commits.
 
 ## Layout
 

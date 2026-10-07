@@ -1,0 +1,40 @@
+# Machine-written dependency updates. Roller PRs go through the same gate, and an agent may land
+# a clean roll alone (gate.toml change_class "dependency-roll").
+# SEED (V0-CFG-03): rollers generates Dependabot config from the dependabot rollers (V0-ROL-02) and
+# runs the toolchain roller itself (V0-ROL-01). An agent may land a clean roll alone (D4).
+
+[area]
+name = "rollers"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["rollers (V0-ROL-01, V0-ROL-02)"]
+chromium = "Skia AutoRoll; roll-dep in depot_tools"
+
+[[roller]]
+name = "python-deps"
+repos = ["xo-space"]
+moves = "Python requirements"   # xo-space has >= floors and no lockfile today
+tool = "dependabot"             # simplest well-known option (plan §5.5 lists Dependabot or Renovate)
+ecosystem = "pip"               # Dependabot package-ecosystem
+directory = "/"
+open_limit = 5                  # at most this many open roll PRs per repo
+cadence = "weekly"
+# TODO(expert): add a Python lockfile first, or rolls cannot be reproducible.
+
+[[roller]]
+name = "node-deps"
+repos = ["innernet"]
+moves = "pnpm-lock.yaml"
+tool = "dependabot"
+ecosystem = "npm"               # Dependabot's npm ecosystem also updates pnpm lockfiles
+directory = "/"
+open_limit = 5
+cadence = "weekly"
+
+[[roller]]
+name = "toolchains"
+repos = ["xo-space", "innernet"]
+moves = "toolchain pins in kinds.toml, as each toolchain's track says"
+tool = "quirq-rollers"          # built on the sync library (plan §5.5)
+cadence = "weekly"

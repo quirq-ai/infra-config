@@ -1,0 +1,39 @@
+# Gardener auto-revert caps: at most 10 reverts created per rolling 24 hours. The 10 is suraj's
+# (plan D5). Counting reverts created is a default I picked, not his decision; he can change it.
+# Beneath it sit LUCI Bisection's finer limits for Chromium (infra/config/luci-bisection.cfg, read
+# 2026-10-03; plan §3 P6). The culprit-age limit gates submission, not creation.
+# tools/qqcfg.py refuses numbers above these: config may tighten them, and loosening them is a
+# policy change to the validator itself.
+
+[area]
+name = "auto_revert"
+status = "seed"
+schema = "v0"
+owners = []            # suraj fills in
+read_by = ["gardener (P4)"]
+chromium = "LUCI Bisection; infra/config/luci-bisection.cfg"
+
+[policy]
+daily_cap = 10                        # reverts created (proposed or landed), all repos and failure types together
+# TODO(suraj, v0): keep the default that the cap of 10 counts reverts created, or count only auto-landed ones (plan §10.3 O2).
+window_hours = 24                     # may not be shorter: the cap is per day
+require_culprit_verification = true   # rerun with and without the suspect, as LUCI does
+only_clean_reverts = true             # a revert that needs conflict resolution is a normal change
+notify = ["culprit-author", "gardener"]
+# Repos (names from repos.toml) where the gardener may queue its reverts to land (V0-CFG-05). Empty
+# means it only proposes: it opens a revert PR assigned to the policy-owner and never queues it.
+# Empty in v0: repos.toml lists only xo-space and innernet, and suraj decided (2026-10-04) that he
+# merges their PRs, reverts included. Adding a repo is a policy change.
+auto_land_repos = []
+
+[build_failure]           # LUCI's compile-failure analysis; "build" is the capability that failed
+create_daily_limit = 10
+submit_daily_limit = 4
+max_culprit_age_hours = 6   # 21,600 s
+
+[test_failure]
+create_daily_limit = 10
+submit_daily_limit = 0      # never auto-submitted: the revert is proposed and an owner lands it
+max_culprit_age_hours = 6
+
+# TODO(expert): whether canary deploy failures get their own budget, or stay with the release rotation.

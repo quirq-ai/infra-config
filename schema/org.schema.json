@@ -14,7 +14,7 @@
       "properties": {
         "system": {"type": "string", "minLength": 1},
         "short": {"type": "string", "minLength": 1},
-        "code_host": {"type": "string", "minLength": 1},
+        "code_host": {"type": "string", "pattern": "^github\\.com/[a-z0-9-]+$", "description": "Host and org, e.g. github.com/quirq-ai. Repo sources must be <code_host>/<name>."},
         "default_backend": {"$ref": "area.schema.json#/$defs/name"}
       }
     },
@@ -80,7 +80,7 @@
         "required": ["name", "source", "visibility", "wave", "owns", "chromium", "owners"],
         "properties": {
           "name": {"$ref": "area.schema.json#/$defs/name"},
-          "source": {"type": "string", "pattern": "^github\\.com/quirq-ai/[a-z0-9-]+$"},
+          "source": {"type": "string", "pattern": "^github\\.com/[a-z0-9-]+/[a-z0-9-]+$", "description": "<code_host>/<name>; qqcfg checks it."},
           "visibility": {"enum": ["public"]},
           "wave": {"type": "integer", "minimum": 1, "maximum": 4},
           "owns": {"type": "string", "minLength": 1},

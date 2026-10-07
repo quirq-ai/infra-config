@@ -15,13 +15,13 @@
         "backend": {"$ref": "area.schema.json#/$defs/name"},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 360},
         "drift_grace_days": {"type": "integer", "minimum": 0, "maximum": 14},
-        "timing": {"type": "string", "pattern": "^[\\w.-]+/[\\w.-]+(/[\\w./-]+)?@[0-9a-f]{40}$"},
+        "timing": {"type": "string", "pattern": "^quirq-ai/[a-z0-9_-]+(/[a-z0-9_-]+)*@[0-9a-f]{40}$", "description": "A quirq-ai tool pinned by commit; never derived from code_host"},
         "results": {
           "type": "object",
           "additionalProperties": false,
           "required": ["sink"],
           "properties": {
-            "sink": {"type": "string", "pattern": "^[\\w.-]+/[\\w.-]+(/[\\w./-]+)?@[0-9a-f]{40}$"}
+            "sink": {"type": "string", "pattern": "^quirq-ai/[a-z0-9_-]+(/[a-z0-9_-]+)*@[0-9a-f]{40}$", "description": "A quirq-ai tool pinned by commit; never derived from code_host"}
           }
         }
       }

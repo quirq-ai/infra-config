@@ -28,8 +28,8 @@
           "name": {"$ref": "area.schema.json#/$defs/name"},
           "source": {
             "type": "string",
-            "pattern": "^[a-z0-9.-]+/quirq-ai/[A-Za-z0-9._-]+$",
-            "description": "Code host path, e.g. github.com/quirq-ai/xo-space."
+            "pattern": "^github\\.com/[a-z0-9-]+/[A-Za-z0-9._-]+$",
+            "description": "Code host path, <code_host>/<name> (qqcfg checks it), e.g. github.com/quirq-ai/xo-space."
           },
           "description": {"type": "string", "minLength": 1},
           "visibility": {"enum": ["public"], "description": "Settled: public repos only for now."},
