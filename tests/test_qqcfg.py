@@ -841,6 +841,159 @@ class UserOrg(unittest.TestCase):
                 self.assertEqual(qqcfg.main(["generate", "--root", str(self.tmp)]), 1)
 
 
+class Init(unittest.TestCase):
+    """One-command setup writes a user org's config with qqcfg init and add-repo, never a generator of
+    its own. The output starts from templates/user-org/ with quirq's policy and no quirq repos."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.out = io.StringIO()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def run_cli(self, *argv, root=None):
+        with contextlib.redirect_stdout(self.out), contextlib.redirect_stderr(self.out):
+            return qqcfg.main([*argv, "--root", str(root or self.tmp)])
+
+    def onboard(self, root):
+        self.assertEqual(self.run_cli("init", "--owner", "acme", root=root), 0, self.out.getvalue())
+        self.assertEqual(self.run_cli("add-repo", "app", "--kind", "python-service", "--kind", "pytest", root=root), 0,
+                         self.out.getvalue())
+        self.assertEqual(self.run_cli("add-repo", "web", "--kind", "node-app", root=root), 0, self.out.getvalue())
+        self.assertEqual(self.run_cli("generate", root=root), 0, self.out.getvalue())
+
+    def snapshot(self, root):
+        return {p.relative_to(root).as_posix(): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
+
+    def assertRefused(self, fn, needle):
+        with self.assertRaises(qqcfg.ConfigError) as e:
+            fn()
+        self.assertIn(needle, str(e.exception))
+
+    def test_empty_org_validates(self):
+        self.assertEqual(self.run_cli("init", "--owner", "acme"), 0, self.out.getvalue())
+        self.assertEqual(qqcfg.validate(self.tmp)[0], [])
+        cfg = qqcfg.load(self.tmp)
+        self.assertEqual(sorted(cfg), sorted(qqcfg.REQUIRED_AREAS))
+        self.assertEqual(cfg["org"]["org"]["code_host"], "github.com/acme")
+        self.assertEqual([r["name"] for r in cfg["org"]["infra_repo"]], ["qq-config"])
+        self.assertEqual(cfg["org"]["roles"]["policy-owner"], ["@acme"])
+        for area, key in [("repos", "repo"), ("pipelines", "builder"), ("fuzz", "schedule"), ("health", "probe"),
+                          ("health", "signal"), ("perf", "benchmark"), ("rollers", "roller")]:
+            self.assertEqual(cfg[area][key], [], f"{area}.{key} starts empty")
+        self.assertEqual(qqcfg.render(cfg), {})
+
+    def test_init_add_repo_generate_validate(self):
+        self.onboard(self.tmp)
+        self.assertEqual(qqcfg.validate(self.tmp)[0], [])
+        cfg = qqcfg.load(self.tmp)
+        self.assertEqual([r["source"] for r in cfg["repos"]["repo"]], ["github.com/acme/app", "github.com/acme/web"])
+        self.assertEqual([b["name"] for b in cfg["pipelines"]["builder"]],
+                         ["app-presubmit", "app-postsubmit", "web-presubmit", "web-postsubmit"])
+        stubs = sorted((self.tmp / "generated").rglob("*.yml"))
+        self.assertEqual(len(stubs), 4)
+        self.assertFalse((self.tmp / ".github").exists())
+        for stub in stubs:
+            text = stub.read_text()
+            self.assertIn("from acme/qq-config.", text.splitlines()[0])
+            self.assertIn("Change acme/qq-config and redeliver it.", text)
+        dest = self.tmp / "checkout"
+        qqcfg.deliver(cfg, "web", dest)
+        self.assertEqual(qqcfg.check_delivered(cfg, "web", dest), [])
+
+    def test_builders_match_a_quirq_product_repo(self):
+        # The same shape as xo-space's builders (pipelines.toml), so a user repo is gated the same way.
+        self.onboard(self.tmp)
+        mine = qqcfg.by_name(qqcfg.load(self.tmp)["pipelines"]["builder"])
+        quirq = qqcfg.by_name(qqcfg.load(ROOT)["pipelines"]["builder"])
+        for pipeline in ("presubmit", "postsubmit"):
+            want = dict(quirq[f"xo-space-{pipeline}"], name=f"app-{pipeline}", repo="app")
+            self.assertEqual(mine[f"app-{pipeline}"], want)
+
+    def test_same_inputs_same_bytes(self):
+        other = self.tmp / "again"
+        self.onboard(self.tmp / "once")
+        self.onboard(other)
+        self.assertEqual(self.snapshot(self.tmp / "once"), self.snapshot(other))
+        before = self.snapshot(other)
+        self.assertEqual(qqcfg.add_repo(other, "web", ["node-app"]), [])  # a re-run is a no-op
+        self.assertEqual(self.snapshot(other), before)
+        self.assertRefused(lambda: qqcfg.add_repo(other, "web", ["gatsby-site"]), "already in this config")
+        self.assertRefused(lambda: qqcfg.add_repo(other, "web", ["node-app"], "develop"), "already in this config")
+        self.assertEqual(self.snapshot(other), before)
+
+    def test_init_refuses(self):
+        self.assertRefused(lambda: qqcfg.init(self.tmp, "Acme"), "lower case")
+        self.assertRefused(lambda: qqcfg.init(self.tmp, "acme/x"), "lower case")
+        self.assertRefused(lambda: qqcfg.init(self.tmp, "acme\n"), "lower case")
+        for owner in ("quirq-ai", "Quirq-AI", "QUIRQ-AI"):
+            with self.assertRaises(qqcfg.ConfigError, msg=owner):
+                qqcfg.init(self.tmp, owner)
+        self.assertRefused(lambda: qqcfg.init(qqcfg.ROOT, "acme"), "not this checkout")
+        self.assertRefused(lambda: qqcfg.init(self.tmp, "acme", "bad login"), "not a GitHub login")
+        self.assertFalse((self.tmp / "config").exists())
+        qqcfg.init(self.tmp, "acme", "@Alice-1")
+        self.assertEqual(qqcfg.load(self.tmp)["org"]["roles"]["policy-owner"], ["@Alice-1"])
+        self.assertRefused(lambda: qqcfg.init(self.tmp, "acme"), "already exists")
+        qqcfg.init(self.tmp, "acme", force=True)
+        self.assertEqual(qqcfg.load(self.tmp)["org"]["roles"]["policy-owner"], ["@acme"])
+        self.assertEqual(self.run_cli("init", "--owner", "quirq-ai", root=self.tmp / "q"), 1)
+
+    def test_add_repo_refuses(self):
+        qqcfg.init(self.tmp, "acme")
+        before = self.snapshot(self.tmp)
+        for name in ("App", "my_app", "my.app", "-app", "a" * 101, ""):
+            self.assertRefused(lambda: qqcfg.add_repo(self.tmp, name, ["node-app"]), "repo name")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "qq-config", ["node-app"]), "config repo")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["rust-crate"]), "unknown kind")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", []), "at least one")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["pytest", "pytest"]), "at least one")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["static-docs"]), "no fetch/build/test")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["container-image"]), "would make the config invalid")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["python-service", "node-app"]),
+                           "exactly one toolchain")
+        for branch in ("$(id)", "a..b", "-x", "a b", "x/.y", "x.lock", "x/", '"'):
+            self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["node-app"], branch), "branch name")
+        self.assertEqual(self.snapshot(self.tmp), before, "a refused add-repo writes nothing")
+        self.assertEqual(self.run_cli("add-repo", "App", "--kind", "node-app"), 1)
+
+    def test_add_repo_refuses_quirq_ai(self):
+        shutil.copytree(ROOT / "config", self.tmp / "config")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["node-app"]), "reviewed change")
+        self.assertRefused(lambda: qqcfg.add_repo(qqcfg.ROOT, "app", ["node-app"]), "not this checkout")
+
+    def test_policy_is_quirqs(self):
+        # A policy change to quirq's config must update templates/user-org/ in the same diff.
+        qqcfg.init(self.tmp, "acme")
+        mine, quirq = qqcfg.load(self.tmp), qqcfg.load(ROOT)
+
+        def drop(d, *keys):
+            return {k: v for k, v in d.items() if k not in keys}
+        for area in ("kinds", "flakes", "gate", "auto_revert", "postmortem"):
+            self.assertEqual(drop(mine[area], "area"), drop(quirq[area], "area"), area)
+        self.assertEqual(mine["pipelines"]["defaults"], quirq["pipelines"]["defaults"])
+        self.assertEqual(drop(mine["fuzz"], "area", "schedule"), drop(quirq["fuzz"], "area", "schedule"))
+        self.assertEqual(drop(mine["health"], "area", "probe", "signal"), drop(quirq["health"], "area", "probe", "signal"))
+        self.assertEqual(mine["channels"]["source"], quirq["channels"]["source"])
+        for m, q in zip(mine["channels"]["channel"], quirq["channels"]["channel"], strict=True):
+            self.assertEqual(dict(m, promotion=drop(m["promotion"], "health_signals")),
+                             dict(q, promotion=drop(q["promotion"], "health_signals")), m["name"])
+        for key in ("backend", "pool", "secret_scope", "budget", "rotation"):
+            self.assertEqual(mine["org"][key], quirq["org"][key], key)
+        self.assertEqual(drop(mine["org"]["org"], "code_host"), drop(quirq["org"]["org"], "code_host"))
+        for area in qqcfg.REQUIRED_AREAS:
+            self.assertEqual(drop(mine[area]["area"], "owners"), drop(quirq[area]["area"], "owners"), area)
+
+    def test_nothing_quirq_specific_leaks(self):
+        self.onboard(self.tmp)
+        data = json.dumps(qqcfg.load(self.tmp))
+        for name in ("xo-space", "innernet", "website", "sharmasuraj0123", "infra-config"):
+            self.assertNotIn(name, data)
+        templates = {p.stem for p in qqcfg.USER_TEMPLATES.glob("*.toml")}
+        self.assertEqual(templates, set(qqcfg.REQUIRED_AREAS) - {"kinds"})
+
+
 class Golden(unittest.TestCase):
     """render() is pinned: quirq-ai's config at tests/golden/config (infra-config 41a8cb0) must render
     exactly the files infra-config 41a8cb0 generated. Each stub's qq-digest covers every byte, header
