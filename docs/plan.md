@@ -190,7 +190,7 @@ agent change, read next to quality (reverts per landed change).
 
 ### 5.1 The rule that keeps it agnostic
 
-**No core file names a language, build tool or deploy target.** Core means `depot`, `sync`, `gate`,
+**No core file names a language, build tool or deploy target.** Core means `qq`, `sync`, `gate`,
 `test-pipelines`, `gardener` and `release`. Anything language-specific lives in an adapter under `recipes/`,
 found through one loader, the way xo-space finds agents. A required check (an AST and grep guard)
 enforces the rule from the first day. xo-space left its guard uncommitted, and suraj's teardown of it (`xo-space` §18) says a
@@ -267,7 +267,7 @@ pipeline definitions live centrally in `infra-config` (D15).
 
 | Repo | Owns | Chromium counterpart | Approach | Starts |
 |---|---|---|---|---|
-| `depot` (devtools) | The `qq` CLI: bootstrap, `fetch`, `sync`, `build`, `test`, `try`, `upload`, `land`, `roll`, `status`. Self-updating, with a pinned version per repo | depot_tools (`fetch`, `gclient`, `git cl`, `roll-dep`) **[w]** | Build (thin, wraps `gh` and git) | P1 |
+| `qq` (devtools, was `depot`) | The `qq` CLI: bootstrap, `fetch`, `sync`, `build`, `test`, `try`, `upload`, `land`, `roll`, `status`. Self-updating, with a pinned version per repo | depot_tools (`fetch`, `gclient`, `git cl`, `roll-dep`) **[w]** | Build (thin, wraps `gh` and git) | P1 |
 | `sync` | The manifest schema, **the only parser and editor library**, the resolver, mirroring policy | gclient + DEPS + gclient_eval **[w]**; "three dependency types" **[cr]** | Build | P1 |
 | `recipes` | Adapters per kind: python-service, pytest, node-app (pnpm/Next.js), container-image, static-docs, then go and rust | chromium/tools/build recipes + recipes-py **[cr]** | Build. Dagger is a candidate runtime inside adapters | P1 |
 | `infra-config` | Shared config library and org-wide policy: pools, secret scopes, rotations, budgets, autonomy levels; since D15 also builder and pipeline definitions, channels, caps, fuzz schedules, postmortem policy and health signals (§5.6) | infra/chromium `@chromium-luci` lib + infradata/config **[w]** | Build | P1 |
@@ -281,9 +281,9 @@ pipeline definitions live centrally in `infra-config` (D15).
 | `installer` | Client installers and updaters that follow a channel (xo-space's install.sh and in-app updater today follow `main` tip) | Windows installer packaging in chrome/tools/build/win **[w]** + chrome/updater, "a drop-in replacement for Google Update/Omaha/Keystone" that third-party embedders can customise for non-Google software on Windows, macOS and Linux **[cr]** | Build. Evaluate the Chromium updater for desktop apps; fit with quirq's apps not yet checked **[inf]** | P5 |
 | `perf` | Benchmarks, dashboard, alert thresholds, bisect | chrome.perf + perf dashboard + Pinpoint **[cr]** | Build small; adopt later | P6 |
 
-How they fit together: `depot` and `rollers` use `sync` to read and write manifests. `recipes` emits actions
+How they fit together: `qq` and `rollers` use `sync` to read and write manifests. `recipes` emits actions
 and JUnit results that `test-pipelines` ingests. `gate` reads `infra-config` and each repo's `infra/` to decide
-which checks are required. `gardener` reads `test-pipelines` results and writes revert PRs through `depot`.
+which checks are required. `gardener` reads `test-pipelines` results and writes revert PRs through `qq`.
 `release` reads the lkgr ref that `gate`'s post-submit runs advance. `installer` reads `release`'s channels.
 `remote-build` and `toolchains` sit under `recipes`.
 

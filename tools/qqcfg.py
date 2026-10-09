@@ -35,7 +35,7 @@ REQUIRED_AREAS = ("org", "kinds", "repos", "pipelines", "gate", "flakes", "auto_
 
 # The thirteen quirq infra repos (plan §5.5; D3 builds them all). org.toml [[infra_repo]] must list
 # exactly these. Renaming, adding or dropping one is a plan change, so it is a change to this line.
-QQ_REPOS = ("depot", "sync", "recipes", "infra-config", "test-pipelines", "gate", "toolchains",
+QQ_REPOS = ("qq", "sync", "recipes", "infra-config", "test-pipelines", "gate", "toolchains",
             "remote-build", "gardener", "rollers", "release", "installer", "perf")
 QUIRQ_HOST = "github.com/quirq-ai"
 # Any other org (the one-command setup) keeps its config in one data-only repo, and lists exactly

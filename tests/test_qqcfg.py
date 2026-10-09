@@ -204,7 +204,7 @@ class BadChangesFail(unittest.TestCase):
         self.assertFails("infra repo 'sync' source must be")
 
     def test_sources_match_quirq_ai_exactly(self):
-        for rel, old, new in (("config/org.toml", 'source = "github.com/quirq-ai/depot"', 'source = "github.com/Quirq-AI/depot"'),
+        for rel, old, new in (("config/org.toml", 'source = "github.com/quirq-ai/qq"', 'source = "github.com/Quirq-AI/qq"'),
                               ("config/repos.toml", 'source = "github.com/quirq-ai/xo-space"',
                                'source = "github.com/QUIRQ-AI/xo-space"')):
             with self.subTest(new=new):
@@ -751,7 +751,7 @@ class UserOrg(unittest.TestCase):
 
     def test_only_qq_config_may_be_an_infra_repo(self):
         for bad in (self.QQ_CONFIG.replace("qq-config", "gate"),
-                    self.QQ_CONFIG + self.QQ_CONFIG.replace("qq-config", "depot")):
+                    self.QQ_CONFIG + self.QQ_CONFIG.replace("qq-config", "qq")):
             with self.subTest(bad=bad):
                 self.edit("config/org.toml", self.QQ_CONFIG, bad)
                 self.assertFails("lists exactly one infra repo, 'qq-config'")
@@ -759,7 +759,7 @@ class UserOrg(unittest.TestCase):
 
     def test_quirq_ai_may_not_drop_to_qq_config(self):
         self.edit("config/org.toml", 'code_host = "github.com/acme"', 'code_host = "github.com/quirq-ai"')
-        self.assertFails("infra repo 'depot' is missing")
+        self.assertFails("infra repo 'qq' is missing")
 
     def test_code_host_is_one_host_and_org(self):
         for bad in ("github.com/acme/x", "github.com/acme/", "github.com/ac me", "acme", "www.github.com/acme",
@@ -795,7 +795,7 @@ class UserOrg(unittest.TestCase):
         errors = []
         qqcfg.check_refs(self.tmp, cfg, errors.append)
         self.assertTrue(any("write code_host as 'github.com/quirq-ai'" in e for e in errors), errors)
-        self.assertTrue(any("infra repo 'depot' is missing" in e for e in errors), errors)
+        self.assertTrue(any("infra repo 'qq' is missing" in e for e in errors), errors)
 
     def test_bad_code_host_is_a_clean_error_in_every_command(self):
         self.edit("config/org.toml", 'code_host = "github.com/acme"', 'code_host = "github.com/acme\\n"')
