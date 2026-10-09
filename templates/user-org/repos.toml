@@ -1,5 +1,5 @@
-# The registry of onboarded repos. `qqcfg add-repo` adds one [[repo]] block per repo, after the
-# line below, which it removes on the first add: TOML has no empty [[repo]] list.
+# The registry of onboarded repos. `qqcfg add-repo` adds one [[repo]] block per repo, replacing
+# the empty list below on the first add (TOML has no empty [[repo]] list).
 repo = []
 
 [area]

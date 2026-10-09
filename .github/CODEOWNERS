@@ -14,3 +14,5 @@
 /AGENTS.md               @sharmasuraj0123
 /LICENSE                 @sharmasuraj0123
 /requirements-drift.txt  @sharmasuraj0123
+# A user org's policy starts from these (qqcfg init), so they are owned like config/.
+/templates/user-org/     @sharmasuraj0123

@@ -92,6 +92,26 @@ their source. Tool pins are never derived from `code_host`: the schema requires 
 test-pipelines' sink and `other_qq_workflows` `from` to name quirq-ai, so every org runs quirq's
 tools at pinned commits.
 
+The setup writes that data with qqcfg too, never with a generator of its own:
+
+```sh
+python3 tools/qqcfg.py init --root ../qq-config --owner acme [--policy-owner alice]
+python3 tools/qqcfg.py add-repo app --root ../qq-config --kind python-service --kind pytest
+python3 tools/qqcfg.py add-repo web --root ../qq-config --kind node-app [--default-branch main]
+python3 tools/qqcfg.py generate --root ../qq-config
+```
+
+`init` writes all 13 areas from `templates/user-org/`: quirq's defaults and policy, `kinds.toml` and
+the timing and sink pins copied from this checkout, `qq-config` as the only infra repo, and every
+org-specific list (repos, builders, fuzz schedules, probes, signals, benchmarks, rollers) empty. It
+refuses `quirq-ai`, an owner not in lower case, and an existing `config/` (unless `--force`).
+`add-repo` adds one public repo and its presubmit and postsubmit builders, shaped like xo-space's,
+running whichever of fetch, build and test its kinds can. Re-adding the same repo changes nothing;
+anything else already present is refused, as is a name outside qq's `[a-z0-9-]`, `qq-config`, an
+unknown kind, or a change that would not validate. It appends in call order, so the same calls in
+the same order give the same bytes. The policy in `templates/user-org/` must equal quirq's own
+config (`tests/test_qqcfg.py`, `Init`).
+
 ## Layout
 
 ```text

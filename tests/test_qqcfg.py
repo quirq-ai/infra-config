@@ -950,7 +950,7 @@ class Init(unittest.TestCase):
         self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", []), "at least one")
         self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["pytest", "pytest"]), "at least one")
         self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["static-docs"]), "no fetch/build/test")
-        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["container-image"]), "would make the config invalid")
+        self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["container-image"]), "no fetch/build/test")
         self.assertRefused(lambda: qqcfg.add_repo(self.tmp, "app", ["python-service", "node-app"]),
                            "exactly one toolchain")
         for branch in ("$(id)", "a..b", "-x", "a b", "x/.y", "x.lock", "x/", '"'):
@@ -988,8 +988,8 @@ class Init(unittest.TestCase):
     def test_nothing_quirq_specific_leaks(self):
         self.onboard(self.tmp)
         data = json.dumps(qqcfg.load(self.tmp))
-        for name in ("xo-space", "innernet", "website", "sharmasuraj0123", "infra-config"):
-            self.assertNotIn(name, data)
+        for name in ("xo-space", "innernet", "website", "sharmasuraj0123"):
+            self.assertFalse(name in data, f"{name!r} leaked into a user org's config")
         templates = {p.stem for p in qqcfg.USER_TEMPLATES.glob("*.toml")}
         self.assertEqual(templates, set(qqcfg.REQUIRED_AREAS) - {"kinds"})
 

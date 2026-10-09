@@ -1,5 +1,6 @@
 # Builders: what runs, on which trigger, in which pool. `qqcfg add-repo` adds each repo's
-# presubmit and postsubmit builders after the line below, which it removes on the first add.
+# presubmit and postsubmit builders,
+# replacing the empty list below on the first add.
 builder = []
 
 [area]
