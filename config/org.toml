@@ -65,9 +65,10 @@ monthly_ci_usd = 0            # TODO(suraj, v0): set the monthly CI compute ceil
 # base versions (D3). suraj created them on 2026-10-04 (V0-ORG-01). `wave` is the v0 start order, 1 to 4,
 # from the v0 dependency order in docs/v0.md as the launch plan (2026-10-03) grouped it.
 # tools/qqcfg.py checks this list is exactly the plan's thirteen. Product repos are in repos.toml.
+# `qq` was `depot` until suraj renamed it on 2026-10-09; github.com/quirq-ai/depot redirects to it.
 [[infra_repo]]
-name = "depot"
-source = "github.com/quirq-ai/depot"
+name = "qq"
+source = "github.com/quirq-ai/qq"
 visibility = "public"
 wave = 2
 owns = "The qq CLI: bootstrap, fetch, sync, build, test, try, upload, land, roll, status."
