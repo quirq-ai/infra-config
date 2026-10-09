@@ -8,6 +8,8 @@
                                                 outside Python (the scorecard reads org budget this way).
     python3 tools/qqcfg.py deliver REPO DIR     copy REPO's generated workflows into the checkout at DIR.
     python3 tools/qqcfg.py check-delivered REPO DIR   fail if DIR's workflows drift from what REPO gets.
+    python3 tools/qqcfg.py init --root DIR --owner OWNER   write a new user org's DIR/config/ (no repos yet).
+    python3 tools/qqcfg.py add-repo NAME --root DIR --kind KIND [--kind KIND]   onboard one repo there.
 
 --root DIR names the data (DIR/config, DIR/generated); code and schema always come from this checkout,
 so a user org's data-only qq-config validates the same way (README, "A user's own org").
@@ -775,6 +777,156 @@ def check_generated(root: Path, cfg: dict, err) -> int:
     return len(want) + len(req)
 
 
+# --- writing a user org's config (init, add-repo) ---------------------------------------------
+# The one-command setup never holds a generator of its own: it runs these, then generate.
+
+USER_TEMPLATES = ROOT / "templates" / "user-org"
+LOGIN_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}")  # a GitHub user login
+NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,99}")  # schema $defs/name, within GitHub's 100 characters
+GENERATED_CAPS = ("fetch", "build", "test")       # what a repo's presubmit and postsubmit builders run
+ADDED_DESCRIPTION = "Onboarded with qqcfg add-repo."
+
+
+def branch_ok(b: str) -> bool:
+    """A plain branch name: it goes into generated YAML and shell, so nothing git would refuse or a shell expands."""
+    parts = b.split("/")
+    return (bool(re.fullmatch(r"[A-Za-z0-9._/-]{1,200}", b)) and not b.startswith("-")
+            and all(p and not p.startswith(".") and not p.endswith(".lock") for p in parts) and ".." not in b)
+
+
+def check_texts(texts: dict[str, str]) -> list[str]:
+    """Every check validate runs except generated/, on config files given as text. [] means valid."""
+    import tempfile
+    errors: list[str] = []
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "config").mkdir()
+        for name, text in texts.items():
+            (Path(d) / "config" / name).write_text(text)
+        try:
+            cfg = load(Path(d))
+        except ConfigError as e:
+            return [str(e)]
+        check_schema(Path(d), cfg, errors.append)
+        if errors:
+            return errors
+        check_refs(Path(d), cfg, errors.append)
+        check_policy(cfg, errors.append)
+        if not errors:
+            try:
+                render(cfg)
+            except ConfigError as e:
+                errors.append(f"generate: {e}")
+    return errors
+
+
+def write_texts(root: Path, texts: dict[str, str]) -> list[str]:
+    (root / "config").mkdir(parents=True, exist_ok=True)
+    for name, text in sorted(texts.items()):
+        tmp = root / "config" / f".{name}.tmp"
+        tmp.write_text(text)
+        tmp.replace(root / "config" / name)
+    return [f"config/{n}" for n in sorted(texts)]
+
+
+def init(root: Path, owner: str, policy_owner: str | None = None, force: bool = False) -> list[str]:
+    """Write a new user org's config/ from templates/user-org/: quirq's defaults and policy, no repos."""
+    if not CODE_HOST_RE.fullmatch(f"github.com/{owner}"):
+        raise ConfigError(f"owner {owner!r} must be a GitHub org or user in lower case")
+    if f"github.com/{owner}" == QUIRQ_HOST:
+        raise ConfigError(f"{QUIRQ_HOST} keeps its own reviewed config; init is for other orgs")
+    if root.resolve() == ROOT:
+        raise ConfigError("init writes a user org's qq-config: pass --root DIR, not this checkout")
+    handle = (policy_owner or owner).removeprefix("@")
+    if not LOGIN_RE.fullmatch(handle):
+        raise ConfigError(f"policy owner {handle!r} is not a GitHub login")
+    if (root / "config").exists() and not force:
+        raise ConfigError(f"{root / 'config'} already exists; init never overwrites a config (--force does)")
+    defaults = load(ROOT)["pipelines"]["defaults"]
+    tokens = {"@OWNER@": owner, "@POLICY_OWNER@": "@" + handle,
+              "@TIMING@": defaults["timing"], "@SINK@": defaults["results"]["sink"]}
+    texts = {}
+    for path in sorted(USER_TEMPLATES.glob("*.toml")):
+        text = path.read_text()
+        for token, value in tokens.items():
+            text = text.replace(token, value)
+        texts[path.name] = text
+    texts["kinds.toml"] = (ROOT / "config" / "kinds.toml").read_text()  # toolchain pins move with quirq's rolls
+    missing = set(REQUIRED_AREAS) - {n.removesuffix(".toml") for n in texts}
+    if missing:
+        raise ConfigError(f"templates/user-org has no template for {sorted(missing)}")
+    errors = check_texts(texts)
+    if errors:
+        raise ConfigError("the templates do not validate:\n  " + "\n  ".join(errors))
+    return write_texts(root, texts)
+
+
+def toml_list(items: list[str]) -> str:
+    return "[" + ", ".join(json.dumps(i) for i in items) + "]"
+
+
+def add_repo(root: Path, name: str, kinds: list[str], default_branch: str = "main") -> list[str]:
+    """Add one product repo and its presubmit and postsubmit builders to a user org's config.
+    Re-adding an identical repo changes nothing; any other repo already present is refused."""
+    if root.resolve() == ROOT:
+        raise ConfigError("add-repo edits a user org's qq-config: pass --root DIR, not this checkout")
+    cfg = load(root)
+    if is_quirq(cfg):
+        raise ConfigError(f"{QUIRQ_HOST} onboards repos by a reviewed change to config/, not add-repo")
+    if not NAME_RE.fullmatch(name):
+        raise ConfigError(f"repo name {name!r}: use lower-case letters, digits and '-' (qq names), at most 100")
+    if name == USER_CONFIG_REPO or name in by_name(cfg["org"]["infra_repo"]):
+        raise ConfigError(f"{name!r} is this org's config repo, not a product repo")
+    if not kinds or len(set(kinds)) != len(kinds):
+        raise ConfigError("give each --kind once, at least one")
+    known = by_name(cfg["kinds"]["kind"])
+    for k in kinds:
+        if k not in known:
+            raise ConfigError(f"unknown kind {k!r}; kinds.toml has {', '.join(sorted(known))}")
+    if not branch_ok(default_branch):
+        raise ConfigError(f"default branch {default_branch!r} is not a plain branch name")
+    caps = [c for c in GENERATED_CAPS
+            if any(c in known[k]["capabilities"] and c in known[k].get("interim", {}) for k in kinds)]
+    if not caps:
+        raise ConfigError(f"kinds {kinds} have no {'/'.join(GENERATED_CAPS)} command qq can run yet")
+    host = cfg["org"]["org"]["code_host"]
+    repo = {"name": name, "source": f"{host}/{name}", "description": ADDED_DESCRIPTION, "visibility": "public",
+            "default_branch": default_branch, "kinds": kinds, "manifest": "infra/repo.toml",
+            "channels": [], "owners": []}
+    pre = {"name": f"{name}-presubmit", "repo": name, "pipeline": "presubmit", "triggers": ["change", "queue"],
+           "kinds": kinds, "capabilities": caps, "pool": "untrusted", "blocking": True,
+           "timeout_minutes": 20, "generate": True}
+    post = {"name": f"{name}-postsubmit", "repo": name, "pipeline": "postsubmit", "triggers": ["land"],
+            "kinds": kinds, "capabilities": caps, "pool": "trusted", "cancel_in_progress": False,
+            "generate": True}
+    have = by_name(cfg["repos"]["repo"]).get(name)
+    builders = by_name(cfg["pipelines"]["builder"])
+    if have is not None or pre["name"] in builders or post["name"] in builders:
+        if have == repo and builders.get(pre["name"]) == pre and builders.get(post["name"]) == post:
+            return []
+        raise ConfigError(f"{name!r} is already in this config with other settings; edit config/ by hand to change it")
+
+    def block(table: str, item: dict) -> str:
+        lines = [f"[[{table}]]"]
+        for k, v in item.items():
+            val = (toml_list(v) if isinstance(v, list) else str(v).lower() if isinstance(v, bool)
+                   else str(v) if isinstance(v, int) else json.dumps(v))
+            lines.append(f"{k} = {val}")
+        return "\n".join(lines) + "\n"
+
+    def append(text: str, table: str, blocks: list[str]) -> str:
+        text = text.replace(f"\n{table} = []\n", "\n", 1)  # the template's empty list, gone on the first add
+        return text.rstrip("\n") + "\n\n" + "\n".join(blocks)
+
+    texts = {p.name: p.read_text() for p in sorted((root / "config").glob("*.toml"))}
+    texts["repos.toml"] = append(texts["repos.toml"], "repo", [block("repo", repo)])
+    texts["pipelines.toml"] = append(texts["pipelines.toml"], "builder",
+                                     [block("builder", pre), block("builder", post)])
+    errors = check_texts(texts)
+    if errors:
+        raise ConfigError(f"adding {name!r} would make the config invalid:\n  " + "\n  ".join(errors))
+    return write_texts(root, {n: texts[n] for n in ("repos.toml", "pipelines.toml")})
+
+
 # --- commands --------------------------------------------------------------------------------
 
 def todos(root: Path) -> list[str]:
@@ -868,8 +1020,8 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="qqcfg", description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=["validate", "generate", "get", "deliver", "check-delivered"])
-    ap.add_argument("target", nargs="?", help="get: the area, e.g. org; deliver, check-delivered: the product repo")
+    ap.add_argument("command", choices=["validate", "generate", "get", "deliver", "check-delivered", "init", "add-repo"])
+    ap.add_argument("target", nargs="?", help="get: the area, e.g. org; deliver, check-delivered, add-repo: the product repo")
     ap.add_argument("detail", nargs="?", help="get: a dotted key, e.g. budget.monthly_ci_usd; deliver, check-delivered: path to that repo's checkout")
     ap.add_argument("--root", type=Path, default=ROOT, help="where config/ and generated/ live (default: this checkout)")
     ap.add_argument("--todos", action="store_true", help="validate: also list open TODOs")
@@ -878,7 +1030,26 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--history", action="store_true",
                     help="check-delivered: when DIR's commit leaves qq-* files alone, also accept stubs main "
                          "generated within drift_grace_days (needs git history in both checkouts)")
+    ap.add_argument("--owner", help="init: the GitHub org or user, in lower case")
+    ap.add_argument("--policy-owner", help="init: the GitHub login that approves policy changes (default: OWNER)")
+    ap.add_argument("--force", action="store_true", help="init: overwrite an existing config/")
+    ap.add_argument("--kind", action="append", default=[], help="add-repo: a kind from kinds.toml; repeat for several")
+    ap.add_argument("--default-branch", default="main", help="add-repo: the repo's default branch (default main)")
     args = ap.parse_args(argv)
+
+    if args.command in ("init", "add-repo"):
+        if args.command == "init" and not args.owner:
+            ap.error("init needs --owner")
+        if args.command == "add-repo" and not args.target:
+            ap.error("add-repo needs a repo NAME")
+        try:
+            wrote = (init(args.root, args.owner, args.policy_owner, args.force) if args.command == "init"
+                     else add_repo(args.root, args.target, args.kind, args.default_branch))
+        except ConfigError as e:
+            print(f"qqcfg {args.command}: {e}", file=sys.stderr)
+            return 1
+        print("\n".join(f"wrote {w}" for w in wrote) or f"{args.target} is already onboarded; nothing changed")
+        return 0
 
     if args.command == "get":
         if not args.target:

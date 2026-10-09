@@ -1,0 +1,23 @@
+# How a test failure becomes a verdict, and how flaky tests are quarantined.
+
+[area]
+name = "flakes"
+status = "seed"
+schema = "v0"
+owners = []
+read_by = ["test-pipelines (V0-TST-03)", "gate"]
+chromium = "ResultDB, LUCI Analysis exoneration (luci-analysis.cfg), retry with and without patch (cq.md)"
+
+[verdict]
+retry_failed = 1
+max_failures_to_retry = 20
+compare_with_base = true
+exonerate_known_flakes = true
+
+[quarantine]
+needs_issue = true
+max_days = 14
+approval = "owner"
+
+[detection]
+flake_rate_target_pct = 1.0

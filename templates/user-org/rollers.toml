@@ -1,0 +1,11 @@
+# Machine-written dependency updates. None yet: add a [[roller]] (and remove the line below) once
+# a repo has a lockfile to roll.
+roller = []
+
+[area]
+name = "rollers"
+status = "seed"
+schema = "v0"
+owners = []
+read_by = ["rollers (V0-ROL-01, V0-ROL-02)"]
+chromium = "Skia AutoRoll; roll-dep in depot_tools"

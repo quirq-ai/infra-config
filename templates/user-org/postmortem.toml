@@ -1,0 +1,59 @@
+# Postmortem policy and failure tracking. Every trigger opens or updates one tracked record.
+
+[area]
+name = "postmortem"
+status = "seed"
+schema = "v0"
+owners = []
+read_by = ["gardener (V0-GAR-04)", "release (V0-REL-03)", "scorecard"]
+chromium = "none cited in the plan"
+
+[policy]
+blameless = true
+tracker = "github-issues"
+label = "postmortem"
+drafted_by = "agent"
+reviewed_by = "owner"
+draft_within_hours = 24
+action_items_need_issue = true
+record_needs = ["culprit", "fix", "covering-test"]
+template = "templates/postmortem.md"   # quirq-ai/infra-config's template, at the pinned commit
+lives_in = "issue"
+
+[recurrence]
+same_class_count = 2
+window_days = 14
+opens = "close-the-class"
+closed_by = ["test", "fuzz-target", "fuzz-corpus-entry", "gate", "health-signal"]
+
+[[trigger]]
+event = "stable-rollback"
+postmortem = "required"
+
+[[trigger]]
+event = "gate-bypassed"
+postmortem = "required"
+
+[[trigger]]
+event = "main-red-over-budget"
+postmortem = "required"
+
+[[trigger]]
+event = "auto-revert-cap-exhausted"
+postmortem = "required"
+
+[[trigger]]
+event = "fuzz-security-crash"
+postmortem = "required"
+
+[[trigger]]
+event = "canary-deploy-failed"
+postmortem = "required"
+
+[[trigger]]
+event = "auto-revert"
+postmortem = "stub"
+
+[[trigger]]
+event = "health-signal-breach"
+postmortem = "track"

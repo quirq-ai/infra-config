@@ -1,0 +1,10 @@
+# Benchmarks on main with alert thresholds. None yet.
+benchmark = []
+
+[area]
+name = "perf"
+status = "stub"
+schema = "v0"
+owners = []
+read_by = ["perf (P6)"]
+chromium = "chrome.perf waterfall, perf dashboard alerts, Pinpoint bisection"

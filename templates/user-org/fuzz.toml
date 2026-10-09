@@ -1,0 +1,31 @@
+# Property tests, the canary fuzz smoke and fuzz schedules. No schedules yet.
+schedule = []
+
+[area]
+name = "fuzz"
+status = "seed"
+schema = "v0"
+owners = []
+read_by = ["recipes (V0-REC-04 property tests)", "release (V0-REL-03 fuzz smoke)", "fuzz runner (v1)"]
+chromium = "ClusterFuzz and libFuzzer targets"
+
+[property_tests]
+python = "hypothesis"
+node = "fast-check"
+gate_minutes = 5
+max_examples = 100
+canary_minutes = 15
+
+[canary_smoke]
+replay_reproducers = true
+engines = ["property-tests"]
+duration_minutes = 20
+blocking = true
+
+[engine]
+python = "atheris"
+node = "jazzer.js"
+
+[findings]
+tracker = "github-issues"
+label = "fuzz-crash"

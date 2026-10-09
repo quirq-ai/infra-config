@@ -1,0 +1,20 @@
+# Health probes and signals that gate promotion and trigger rollback. None yet: no repo ships on a
+# channel. A missing signal is not a healthy one: no probe data holds the canary.
+probe = []
+signal = []
+
+[area]
+name = "health"
+status = "seed"
+schema = "v0"
+owners = []
+read_by = ["release (V0-REL-03 probe stage)", "gardener", "scorecard"]
+chromium = "release health checks before a staged rollout widens (inference from plan §3 P8)"
+
+[posthog]
+host = ""
+secret_scope = "posthog-read"
+
+[canary]
+missing_data = "hold"
+on_probe_failure = "hold"

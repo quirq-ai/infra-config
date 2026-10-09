@@ -1,0 +1,11 @@
+# The registry of onboarded repos. `qqcfg add-repo` adds one [[repo]] block per repo, after the
+# line below, which it removes on the first add: TOML has no empty [[repo]] list.
+repo = []
+
+[area]
+name = "repos"
+status = "seed"
+schema = "v0"
+owners = []
+read_by = ["gate", "gardener", "release", "rollers"]
+chromium = "projects and refs declared in infra/config (lucicfg)"
