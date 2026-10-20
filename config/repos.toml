@@ -53,10 +53,14 @@ visibility = "public"
 default_branch = "main"
 kinds = ["python-package"]
 manifest = "infra/repo.toml"
-channels = []            # not in the canary: release's canary.yml and its App cover xo-space and innernet only
+channels = []            # not in the canary (release's canary builds only repos listing "canary")
+# release's lkgr still moves an `lkgr` branch in every repo listed here, channels or not, and mints
+# the executor App's token for all of them: before release pins infra-config past this entry, the
+# App must be installed on xo and gate must list xo in [release_refs] executor_repos.
 owners = []              # suraj fills in
 [repo.deploy]
 target = "vercel"        # Vercel's GitHub app deploys main to xo.quirq.dev (xo docs/deploy-vercel.md); qq deploys nothing
+# Vercel runs xo on Python 3.12 (xo .python-version); qq's builders run the org pin (kinds.toml, 3.14).
 
 [[repo]]
 name = "innernet"
