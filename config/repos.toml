@@ -46,6 +46,19 @@ owners = []              # suraj fills in
 target = "vercel"        # Vercel's GitHub app deploys PR previews (website #1); TODO(expert): verify production.
 
 [[repo]]
+name = "xo"
+source = "github.com/quirq-ai/xo"
+description = "The xo command line and its server (xo serve), a standard-library Python package."
+visibility = "public"
+default_branch = "main"
+kinds = ["python-package"]
+manifest = "infra/repo.toml"
+channels = []            # not in the canary: release's canary.yml and its App cover xo-space and innernet only
+owners = []              # suraj fills in
+[repo.deploy]
+target = "vercel"        # Vercel's GitHub app deploys main to xo.quirq.dev (xo docs/deploy-vercel.md); qq deploys nothing
+
+[[repo]]
 name = "innernet"
 source = "github.com/quirq-ai/innernet"
 description = "Next.js app managed with pnpm."

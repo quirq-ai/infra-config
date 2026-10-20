@@ -136,3 +136,29 @@ capabilities = ["fetch", "build", "test"]
 pool = "trusted"
 cancel_in_progress = false
 generate = true
+
+# --- xo -------------------------------------------------------------------------------------
+# No canary builder: xo has no channels (repos.toml).
+
+[[builder]]
+name = "xo-presubmit"
+repo = "xo"
+pipeline = "presubmit"
+triggers = ["change", "queue"]
+kinds = ["python-package"]
+capabilities = ["fetch", "build", "test"]
+pool = "untrusted"
+blocking = true
+timeout_minutes = 10     # as xo's hand-written presubmit.yml; the suite takes about 80 s locally
+generate = true
+
+[[builder]]
+name = "xo-postsubmit"
+repo = "xo"
+pipeline = "postsubmit"
+triggers = ["land"]
+kinds = ["python-package"]
+capabilities = ["fetch", "build", "test"]
+pool = "trusted"
+cancel_in_progress = false
+generate = true
