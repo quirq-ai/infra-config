@@ -99,7 +99,7 @@ infra-config/
 ├── config/                 the source of truth: one TOML file per area, parsed and never executed
 │   ├── org.toml            system name, backends, roles, pools, secret scopes, budget, rotations,
 │   │                       and the thirteen quirq infra repos
-│   ├── kinds.toml          toolchains and target kinds (year one: latest Python, latest Next.js, Gatsby)
+│   ├── kinds.toml          toolchains and target kinds (year one: latest Python, latest Next.js, Gatsby, npm)
 │   ├── repos.toml          registry of onboarded repos: xo-space, website, xo, innernet
 │   ├── pipelines.toml      builders: presubmit, postsubmit, release
 │   ├── gate.toml           landing gate, verification surface, who may land what
@@ -131,7 +131,7 @@ read first).
 | Area | Status | What the expert owns next |
 |---|---|---|
 | `org` | seed | Isolated runners for trusted work; OIDC trust for each deploy target; mapping Launchpad onto the backend seam. |
-| `kinds` | seed | Recipes adapters for `python-service`, `pytest`, `node-app`, `gatsby-site` and `static-docs` that replace the `interim` commands; github provisioning for node. |
+| `kinds` | seed | Recipes adapters for `python-service`, `pytest`, `python-package`, `node-app`, `gatsby-site`, `npm-app` and `static-docs` that replace the `interim` commands; github provisioning for node. |
 | `repos` | seed | Each repo's own `infra/repo.toml` (with `sync`); moving xo-space from Python 3.12 to the org pin; confirming innernet's deploy target. |
 | `pipelines` | seed | Switching steps from `interim` commands to recipes adapters; a gate-side check that delivered stubs match this repo. |
 | `gate` | seed | Making the change classes machine-checkable; the gate check app; tree closers. suraj applies the GitHub settings (merge queue, required checks). |
