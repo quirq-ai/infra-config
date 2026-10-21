@@ -88,6 +88,17 @@ test = "python -m pytest -q -p no:cacheprovider --junitxml=results/junit.xml"
 # TODO(expert): a recipes adapter for python-package, so `qq build` and `qq test` work locally.
 
 [[kind]]
+name = "npm-app"         # a Node project managed with npm (package-lock.json): apps, sites and tools
+phase = "year-one"
+capabilities = ["fetch", "build", "test"]
+toolchain = "node"
+[kind.interim]           # checked 2026-10-20 on Node 24.22.0 (the pin) against galileo 10b5507, instants cbeb9f3, quirqy 262ff7d, quitter f4ac9ca, research 35dc835, setup 8f4d7fd and wiki 49b2d5a (install, build, test pass)
+fetch = "npm ci --no-audit --no-fund --ignore-scripts"   # needs package-lock.json; no install scripts run, root or dependency (as pnpm 10 runs none unlisted)
+build = "npm run build --if-present"   # a repo with no build script (galileo) builds nothing
+test = "npm test"        # no test_reports: qqcfg writes a one-case report
+# TODO(expert): a recipes adapter for npm-app, so `qq build` and `qq test` work locally.
+
+[[kind]]
 name = "static-docs"
 phase = "year-one"
 capabilities = ["build", "deploy"]
