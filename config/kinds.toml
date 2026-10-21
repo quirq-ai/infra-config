@@ -76,6 +76,18 @@ test = "pnpm test"       # node --test; no test_reports: qqcfg writes a one-case
 # TODO(expert): a recipes adapter for gatsby-site, so `qq build` and `qq test` work locally (exit test 2).
 
 [[kind]]
+name = "python-package"  # a pyproject.toml package in a src/ layout with a `test` extra (pytest), no requirements files (quirq-ai/xo)
+phase = "year-one"
+capabilities = ["fetch", "build", "test"]
+toolchain = "python"
+test_reports = ["results/junit.xml"]   # what the interim test command writes, for the result sink
+[kind.interim]           # checked against xo f35ded9 on Python 3.13, 2026-10-20 (install, compileall, pytest pass); xo CI runs the same install and pytest on 3.14
+fetch = "python -m pip install --quiet -e \".[test]\""
+build = "test -d src && python -m compileall -q src"   # compileall alone exits 0 when src/ is missing
+test = "python -m pytest -q -p no:cacheprovider --junitxml=results/junit.xml"
+# TODO(expert): a recipes adapter for python-package, so `qq build` and `qq test` work locally.
+
+[[kind]]
 name = "static-docs"
 phase = "year-one"
 capabilities = ["build", "deploy"]
