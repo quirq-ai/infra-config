@@ -252,6 +252,86 @@ class BadChangesFail(unittest.TestCase):
 
 
 
+class RepoCommands(unittest.TestCase):
+    """add-repo and remove-repo: the one-command setup's way to onboard a product repo."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        for d in ("config", "generated", "templates"):
+            shutil.copytree(ROOT / d, self.tmp / d)
+        (self.tmp / ".github/workflows").mkdir(parents=True)
+        for f in (ROOT / ".github/workflows").glob("qq-required-*"):
+            shutil.copy(f, self.tmp / ".github/workflows")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def files(self):
+        return {p.relative_to(self.tmp).as_posix(): p.read_text() for p in sorted(self.tmp.rglob("*")) if p.is_file()}
+
+    def test_add_then_remove_is_byte_for_byte_a_no_op(self):
+        before = self.files()
+        changed = qqcfg.add_repo(self.tmp, "demo-app", ["node-app"], "A demo Next.js app.")
+        self.assertIn("generated/github/demo-app/qq-demo-app-presubmit.yml", changed)
+        cfg = qqcfg.load(self.tmp)
+        repo = qqcfg.by_name(cfg["repos"]["repo"])["demo-app"]
+        self.assertEqual((repo["source"], repo["channels"], repo["owners"], repo["kinds"]),
+                         ("github.com/quirq-ai/demo-app", [], [], ["node-app"]))
+        mine = {b["name"]: b for b in cfg["pipelines"]["builder"] if b["repo"] == "demo-app"}
+        self.assertEqual(set(mine), {"demo-app-presubmit", "demo-app-postsubmit"})
+        self.assertTrue(mine["demo-app-presubmit"]["blocking"])
+        self.assertTrue((self.tmp / ".github/workflows/qq-required-demo-app-presubmit.yml").is_file())
+        self.assertEqual(qqcfg.validate(self.tmp)[0], [])
+        qqcfg.remove_repo(self.tmp, "demo-app")
+        self.assertEqual(self.files(), before)
+
+    def test_remove_keeps_every_comment_but_the_repos_own(self):
+        qqcfg.remove_repo(self.tmp, "xo")
+        repos = (self.tmp / "config/repos.toml").read_text()
+        self.assertNotIn('name = "xo"', repos)
+        self.assertNotIn("xo docs/deploy-vercel.md", repos)  # the repo's own trailing comment goes too
+        self.assertIn("\n\n[[repo]]\nname = \"innernet\"", repos)  # one blank line between blocks stays
+        pipes = (self.tmp / "config/pipelines.toml").read_text()
+        self.assertNotIn("# --- xo ---", pipes)
+        self.assertIn("# --- website ---", pipes)
+        self.assertFalse((self.tmp / "generated/github/xo").exists())
+        self.assertEqual(qqcfg.validate(self.tmp)[0], [])
+
+    def test_refusals_change_nothing(self):
+        before = self.files()
+        for call, needle in (
+            (lambda: qqcfg.add_repo(self.tmp, "xo", ["node-app"], "x"), "already in repos.toml"),
+            (lambda: qqcfg.add_repo(self.tmp, "gate", ["node-app"], "x"), "already in repos.toml or org.toml"),
+            (lambda: qqcfg.add_repo(self.tmp, "new", ["no-such-kind"], "x"), "kinds must be some of"),
+            (lambda: qqcfg.add_repo(self.tmp, "new", [], "x"), "kinds must be some of"),
+            (lambda: qqcfg.add_repo(self.tmp, "new", ["node-app"], "  "), "one-line description"),
+            (lambda: qqcfg.add_repo(self.tmp, "bad name", ["node-app"], "x"), "not a GitHub repo name"),
+            # Validate refuses it (a generated job needs one toolchain): every file is put back.
+            (lambda: qqcfg.add_repo(self.tmp, "mixed", ["node-app", "pytest"], "x"), "exactly one toolchain"),
+            (lambda: qqcfg.remove_repo(self.tmp, "nope"), "not a product repo"),
+            (lambda: qqcfg.remove_repo(self.tmp, "xo-space"), "still named in config/fuzz.toml"),
+        ):
+            with self.subTest(needle), self.assertRaisesRegex(qqcfg.ConfigError, re.escape(needle)):
+                call()
+            self.assertEqual(self.files(), before, needle)
+
+    def test_a_description_is_one_toml_string_whatever_it_holds(self):
+        qqcfg.add_repo(self.tmp, "quoted", ["node-app"], 'Says "hi" \\ and # not a comment')
+        repo = qqcfg.by_name(qqcfg.load(self.tmp)["repos"]["repo"])["quoted"]
+        self.assertEqual(repo["description"], 'Says "hi" \\ and # not a comment')
+
+    def test_cli(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = qqcfg.main(["add-repo", "demo-app", "--kind", "node-app", "--description", "Demo.", "--root", str(self.tmp)])
+        self.assertEqual(rc, 0)
+        self.assertIn("PASS: validate", out.getvalue())
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(qqcfg.main(["remove-repo", "xo-space", "--root", str(self.tmp)]), 1)
+        self.assertIn("still named in", err.getvalue())
+
+
 class Readers(unittest.TestCase):
     def setUp(self):
         self.cfg = qqcfg.load(ROOT)
