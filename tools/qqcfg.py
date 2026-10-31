@@ -8,6 +8,10 @@
                                                 outside Python (the scorecard reads org budget this way).
     python3 tools/qqcfg.py deliver REPO DIR     copy REPO's generated workflows into the checkout at DIR.
     python3 tools/qqcfg.py check-delivered REPO DIR   fail if DIR's workflows drift from what REPO gets.
+    python3 tools/qqcfg.py add-repo REPO --kind KIND [--kind KIND] --description TEXT
+                                                add a product repo to repos.toml with a presubmit and a
+                                                post-submit builder in pipelines.toml, then generate.
+    python3 tools/qqcfg.py remove-repo REPO     take a product repo and its builders out, then generate.
 
 --root DIR names the data (DIR/config, DIR/generated); code and schema always come from this checkout,
 so a user org's data-only qq-config validates the same way (README, "A user's own org").
@@ -865,14 +869,247 @@ def validate(root: Path) -> tuple[list[str], list[str]]:
     report.append(f"note  todos      {len(found)} open, {v0} needed for v0 (python3 tools/qqcfg.py validate --todos)")
     return errors, report
 
+# --- adding and removing a product repo ------------------------------------------------------
+# The one-command setup (quirq-ai/setup) onboards a repo through these two commands, so the config and
+# its generated workflows come from this one generator. Both edit config/ as text, so every comment
+# stays, and both check that the edited file parses to the old one with only that repo's entries
+# added or removed. Then they generate and validate; on any error every file is put back as it was.
+
+REPO_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
+_HEADER_RE = re.compile(r"\s*\[")
+_RULE_WIDTH = 94  # the "# --- <repo> ---" section lines in pipelines.toml
+
+
+def _toml_str(s: str) -> str:
+    return json.dumps(s, ensure_ascii=False)  # a JSON string is a valid TOML basic string
+
+
+def _blocks(lines: list[str], header: str) -> list[tuple[int, int]]:
+    """(start, end) line ranges of each `header` table: from its line to the next table header that
+    is not one of its own sub-tables, less the comment lines that sit directly on that next header."""
+    sub = header.strip("[]")
+    out = []
+    starts = [i for i, l in enumerate(lines) if l.strip() == header]
+    for i in starts:
+        end = len(lines)
+        for j in range(i + 1, len(lines)):
+            stripped = lines[j].strip()
+            if _HEADER_RE.match(lines[j]) and not stripped.startswith((f"[{sub}.", f"[[{sub}.")):
+                end = j
+                break
+        while end > i + 1 and lines[end - 1].lstrip().startswith("#"):
+            end -= 1
+        out.append((i, end))
+    return out
+
+
+def _block_value(lines: list[str], block: tuple[int, int], key: str):
+    """`key` of the one `[[table]]` entry the block holds."""
+    entry = next(iter(tomllib.loads("".join(lines[block[0]:block[1]])).values()))[0]
+    return entry.get(key)
+
+
+def _snapshot(root: Path) -> dict[Path, str | None]:
+    """Every file add-repo or remove-repo can change, to put back on failure."""
+    paths = [root / "config" / "repos.toml", root / "config" / "pipelines.toml"]
+    gen, wf = root / "generated", root / WORKFLOWS
+    paths += [p for p in gen.rglob("*") if p.is_file()] if gen.exists() else []
+    paths += list(wf.glob(REQUIRED + "*")) if wf.exists() else []
+    return {p: p.read_text() for p in paths}
+
+
+def _restore(root: Path, snap: dict[Path, str | None]) -> None:
+    gen, wf = root / "generated", root / WORKFLOWS
+    now = ([p for p in gen.rglob("*") if p.is_file()] if gen.exists() else []) + (list(wf.glob(REQUIRED + "*")) if wf.exists() else [])
+    for p in now:
+        if p not in snap:
+            p.unlink()
+    for p, text in snap.items():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+
+
+def _same_but(before: str, after: str, table: str, keep, want: int) -> None:
+    """after must parse to before with only the entries `keep` rejects changed, and hold `want` of them."""
+    old, new = tomllib.loads(before), tomllib.loads(after)
+    strip = lambda d: {**d, table: [e for e in d.get(table, []) if keep(e)]}
+    if strip(old) != strip(new):
+        raise ConfigError(f"refusing an edit that would change more than the repo's own [[{table}]] entries")
+    got = sum(not keep(e) for e in new.get(table, []))
+    if got != want:
+        raise ConfigError(f"the edit left {got} of the repo's [[{table}]] entries, not {want}")
+
+
+def _commit(root: Path, edits: dict[Path, str]) -> list[str]:
+    """Write the edited config, generate, validate. On an error put every file back and raise."""
+    snap = _snapshot(root)
+    try:
+        for p, text in edits.items():
+            p.write_text(text)
+        written = write_generated(root, load(root))
+        errors, _ = validate(root)
+        if errors:
+            raise ConfigError("validate failed, nothing changed:\n  " + "\n  ".join(errors))
+    except BaseException:
+        _restore(root, snap)
+        raise
+    return [p.relative_to(root).as_posix() for p in edits] + written
+
+
+def add_repo(root: Path, name: str, kinds: list[str], description: str) -> list[str]:
+    """A public product repo on its default branch main, outside the canary (channels = []), with a
+    blocking presubmit (change and queue) and a post-submit builder for its kinds."""
+    if not REPO_NAME_RE.fullmatch(name) or name.lower().endswith(".git"):
+        raise ConfigError(f"{name!r} is not a GitHub repo name")
+    cfg = load(root)
+    taken = {r["name"].lower() for r in cfg["repos"]["repo"]} | {r["name"].lower() for r in cfg["org"]["infra_repo"]}
+    if name.lower() in taken:
+        raise ConfigError(f"{name} is already in repos.toml or org.toml")
+    known = [k["name"] for k in cfg["kinds"]["kind"]]
+    kinds = list(dict.fromkeys(kinds))
+    if not kinds or any(k not in known for k in kinds):
+        raise ConfigError(f"kinds must be some of {known}, got {kinds}")
+    description = " ".join(description.split())
+    if not description:
+        raise ConfigError("a repo needs a one-line description")
+    taken_builders = {b["name"] for b in cfg["pipelines"]["builder"]}
+    for b in (f"{name}-presubmit", f"{name}-postsubmit"):
+        if b in taken_builders:
+            raise ConfigError(f"pipelines.toml already has a builder {b}")
+    source = f"{cfg['org']['org']['code_host'].lower()}/{name}"
+    kind_list = "[" + ", ".join(_toml_str(k) for k in kinds) + "]"
+
+    repos_path, pipes_path = root / "config" / "repos.toml", root / "config" / "pipelines.toml"
+    repos_text, pipes_text = repos_path.read_text(), pipes_path.read_text()
+    new_repos = repos_text.rstrip("\n") + "\n" + f"""
+[[repo]]
+name = {_toml_str(name)}
+source = {_toml_str(source)}
+description = {_toml_str(description)}
+visibility = "public"
+default_branch = "main"
+kinds = {kind_list}
+manifest = "infra/repo.toml"
+channels = []            # not in the canary; added with qqcfg add-repo
+owners = []              # suraj fills in
+"""
+    rule = f"# --- {name} "
+    new_pipes = pipes_text.rstrip("\n") + "\n\n" + rule + "-" * max(3, _RULE_WIDTH - len(rule)) + "\n" + f"""
+[[builder]]
+name = {_toml_str(name + "-presubmit")}
+repo = {_toml_str(name)}
+pipeline = "presubmit"
+triggers = ["change", "queue"]
+kinds = {kind_list}
+capabilities = ["fetch", "build", "test"]
+pool = "untrusted"
+blocking = true
+generate = true
+
+[[builder]]
+name = {_toml_str(name + "-postsubmit")}
+repo = {_toml_str(name)}
+pipeline = "postsubmit"
+triggers = ["land"]
+kinds = {kind_list}
+capabilities = ["fetch", "build", "test"]
+pool = "trusted"
+cancel_in_progress = false
+generate = true
+"""
+    _same_but(repos_text, new_repos, "repo", lambda r: r["name"] != name, 1)
+    _same_but(pipes_text, new_pipes, "builder", lambda b: b["repo"] != name, 2)
+    return _commit(root, {repos_path: new_repos, pipes_path: new_pipes})
+
+
+def _uses(value, name: str) -> bool:
+    if isinstance(value, str):
+        return value == name
+    if isinstance(value, list):
+        return any(_uses(v, name) for v in value)
+    if isinstance(value, dict):
+        return any(_uses(v, name) for v in value.values())
+    return False
+
+
+def remove_repo(root: Path, name: str) -> list[str]:
+    """Take a product repo out of repos.toml and its builders out of pipelines.toml. Refused while
+    another area still names it, so nothing is left pointing at a repo that is gone."""
+    cfg = load(root)
+    if name not in by_name(cfg["repos"]["repo"]):
+        raise ConfigError(f"{name} is not a product repo in repos.toml")
+    users = sorted(f"config/{area}.toml" for area, data in cfg.items()
+                   if area not in ("repos", "pipelines") and _uses(data, name))
+    if users:
+        raise ConfigError(f"{name} is still named in {', '.join(users)}: take it out there first")
+
+    repos_path, pipes_path = root / "config" / "repos.toml", root / "config" / "pipelines.toml"
+    repos_text, pipes_text = repos_path.read_text(), pipes_path.read_text()
+    lines = repos_text.splitlines(keepends=True)
+    mine = [b for b in _blocks(lines, "[[repo]]") if _block_value(lines, b, "name") == name]
+    new_repos = _cut(lines, mine)
+
+    lines = pipes_text.splitlines(keepends=True)
+    mine = [b for b in _blocks(lines, "[[builder]]") if _block_value(lines, b, "repo") == name]
+    rule = next((i for i, l in enumerate(lines) if re.fullmatch(rf"# --- {re.escape(name)} -+\n?", l)), None)
+    if rule is not None and mine:
+        nxt = next((i for i in range(rule + 1, len(lines)) if lines[i].startswith("# --- ")), len(lines))
+        inside = [b for b in _blocks(lines, "[[builder]]") if rule < b[0] < nxt]
+        if inside and inside == mine:  # the section holds exactly this repo's builders: drop it whole
+            mine = [(rule, max(nxt, mine[-1][1]))]
+    new_pipes = _cut(lines, mine)
+
+    _same_but(repos_text, new_repos, "repo", lambda r: r["name"] != name, 0)
+    _same_but(pipes_text, new_pipes, "builder", lambda b: b["repo"] != name, 0)
+    return _commit(root, {repos_path: new_repos, pipes_path: new_pipes})
+
+
+def _cut(lines: list[str], ranges: list[tuple[int, int]]) -> str:
+    """Drop the line ranges, and the blank line before each, so no run of blank lines is left."""
+    drop = set()
+    for start, end in ranges:
+        drop.update(range(start, end))
+        # One blank line goes with the block: its own last line, or else the one before it.
+        if start > 0 and not lines[start - 1].strip() and lines[end - 1].strip():
+            drop.add(start - 1)
+    kept = [l for i, l in enumerate(lines) if i not in drop]
+    return "".join(kept).rstrip("\n") + "\n"
+
+
+def write_generated(root: Path, cfg: dict) -> list[str]:
+    """Rewrite generated/ and this repo's org-required workflow copies from cfg. Returns what it wrote."""
+    gen = root / "generated"
+    want, req = render(cfg), render(cfg, required=True)
+    for p in sorted(gen.rglob("*"), reverse=True) if gen.exists() else []:
+        if p.is_file() and p.relative_to(gen).as_posix() not in want:
+            p.unlink()
+        elif p.is_dir() and not any(p.iterdir()):
+            p.rmdir()
+    written = []
+    for rel, text in want.items():
+        (gen / rel).parent.mkdir(parents=True, exist_ok=True)
+        (gen / rel).write_text(text)
+        written.append(f"generated/{rel}")
+    wf = root / WORKFLOWS
+    for p in wf.glob(REQUIRED + "*") if wf.exists() else []:
+        if f"{WORKFLOWS}/{p.name}" not in req:
+            p.unlink()
+    for rel, text in req.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text)
+        written.append(rel)
+    return written
+
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="qqcfg", description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=["validate", "generate", "get", "deliver", "check-delivered"])
-    ap.add_argument("target", nargs="?", help="get: the area, e.g. org; deliver, check-delivered: the product repo")
+    ap.add_argument("command", choices=["validate", "generate", "get", "deliver", "check-delivered", "add-repo", "remove-repo"])
+    ap.add_argument("target", nargs="?", help="get: the area, e.g. org; deliver, check-delivered, add-repo, remove-repo: the product repo")
     ap.add_argument("detail", nargs="?", help="get: a dotted key, e.g. budget.monthly_ci_usd; deliver, check-delivered: path to that repo's checkout")
     ap.add_argument("--root", type=Path, default=ROOT, help="where config/ and generated/ live (default: this checkout)")
     ap.add_argument("--todos", action="store_true", help="validate: also list open TODOs")
+    ap.add_argument("--kind", action="append", default=[], help="add-repo: a kind from kinds.toml (repeat for more)")
+    ap.add_argument("--description", default="", help="add-repo: one line on what the repo is")
     ap.add_argument("--base", help="check-delivered: the PR's base branch; other branches than the default pass")
     ap.add_argument("--base-sha", help="check-delivered: the commit DIR's change is tested against (default HEAD^1)")
     ap.add_argument("--history", action="store_true",
@@ -931,34 +1168,42 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(changed) or "already up to date")
         return 0
 
+    if args.command in ("add-repo", "remove-repo"):
+        if not args.target:
+            ap.error(f"{args.command} needs REPO")
+        if args.command == "remove-repo" and (args.kind or args.description):
+            ap.error("remove-repo takes only REPO")
+        try:
+            if args.command == "add-repo":
+                changed = add_repo(args.root, args.target, args.kind, args.description)
+            else:
+                changed = remove_repo(args.root, args.target)
+        except ConfigError as e:
+            print(f"qqcfg {args.command}: {e}", file=sys.stderr)
+            return 1
+        for rel in changed:
+            print(f"wrote {rel}")
+        print("PASS: validate")
+        # What this command does not do: the steps after it, in their own repos.
+        print(f"next: qqcfg deliver {args.target} <checkout> for its workflows; gate settings/github.toml and its"
+              " infra-config pin; and release's lkgr moves an lkgr branch in every repo repos.toml lists"
+              if args.command == "add-repo" else
+              f"next: gate settings/github.toml drops {args.target} at a pin past this change; the repo keeps its"
+              " delivered qq-*.yml files and its rulesets until they are removed there")
+        return 0
+
     if args.command == "generate":
         cfg = load(args.root)
         if args.root.resolve() == ROOT and not is_quirq(cfg):
             print(f"qqcfg generate: this checkout's code_host must be {QUIRQ_HOST!r}; "
                   "generate a user org's qq-config with --root", file=sys.stderr)
             return 1
-        gen = args.root / "generated"
         try:
-            want, req = render(cfg), render(cfg, required=True)
+            written = write_generated(args.root, cfg)
         except ConfigError as e:
             print(f"qqcfg generate: {e}", file=sys.stderr)
             return 1
-        for p in sorted(gen.rglob("*"), reverse=True) if gen.exists() else []:
-            if p.is_file() and p.relative_to(gen).as_posix() not in want:
-                p.unlink()
-            elif p.is_dir() and not any(p.iterdir()):
-                p.rmdir()
-        for rel, text in want.items():
-            (gen / rel).parent.mkdir(parents=True, exist_ok=True)
-            (gen / rel).write_text(text)
-            print(f"wrote generated/{rel}")
-        wf = args.root / WORKFLOWS
-        for p in wf.glob(REQUIRED + "*") if wf.exists() else []:
-            if f"{WORKFLOWS}/{p.name}" not in req:
-                p.unlink()
-        for rel, text in req.items():
-            (args.root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (args.root / rel).write_text(text)
+        for rel in written:
             print(f"wrote {rel}")
         return 0
 

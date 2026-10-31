@@ -63,6 +63,8 @@ python3 tools/qqcfg.py generate                # rewrite generated/ after editin
 python3 tools/qqcfg.py get org budget           # one area or value as JSON, for non-Python readers
 python3 tools/qqcfg.py deliver xo-space ../xo-space   # copy its generated workflows into a checkout
 python3 tools/qqcfg.py check-delivered xo-space ../xo-space   # the qq-drift check
+python3 tools/qqcfg.py add-repo demo --kind node-app --description "One line."   # onboard a product repo
+python3 tools/qqcfg.py remove-repo demo        # take one out (refused while another area names it)
 python3 -m unittest discover -s tests          # seed passes; known-bad changes fail
 ```
 
@@ -72,6 +74,17 @@ write. `.github/workflows/validate.yml` runs it with the tests on every PR and i
 `render()` itself is pinned by a golden test (`tests/golden/`): quirq-ai's config there must render
 byte for byte what it rendered before, because each delivered stub's `qq-digest` covers its header.
 A change that means to alter generated output updates `tests/golden/` in the same PR.
+
+`add-repo` and `remove-repo` are how the one-command setup (quirq-ai/setup) onboards or removes a
+product repo. `add-repo` appends one public `[[repo]]` (on `main`, `channels = []`, `owners = []`) to
+`repos.toml` and a blocking presubmit plus a post-submit builder to `pipelines.toml`, under a
+`# --- <repo> ---` line. `remove-repo` deletes the repo's block, its builders and that section line,
+and is refused while any other area still names the repo. Both edit the files as text, so every
+other line and comment stays, and both check that the result parses to the old file with only that
+repo's entries changed. Then they run `generate` and `validate`, and if anything fails they put every
+file back. They do not deliver the workflows into the repo (`deliver`), change gate's settings, or
+move any tool's pin of this repo; each of those is its own pull request. A repo with channels, a
+deploy target or more builders is still edited by hand after `add-repo`.
 
 ### A user's own org (one-command setup)
 
